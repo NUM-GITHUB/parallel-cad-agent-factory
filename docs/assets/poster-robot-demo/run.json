@@ -1,0 +1,276 @@
+{
+  "runId": "monitor-20260509152134",
+  "capturedFrom": "live monitor UI",
+  "status": "complete",
+  "prompt": "Build a polished poster-style toy robot with a purple rounded square head, large silver circular eyes, black eye pupils, a small black smile, a green rounded body, a yellow chest screen frame, a black inner chest display, orange segmented cylinder arms, silver claw hands, blue wheel feet, and dark wheel hubs.",
+  "backend": "codex",
+  "freshProject": true,
+  "counts": {
+    "cadAgentInstances": 11,
+    "importedPartManifests": 11,
+    "sourcePrimitivePlacements": 17
+  },
+  "finalAssembly": {
+    "screenshot": "docs/assets/poster-robot-demo/dispatch-assembly.png",
+    "manifest": "assembly-manifest-monitor-20260509152134"
+  },
+  "parts": [
+    {
+      "instance": "CAD Agent Instance 01",
+      "id": "rounded-square-head",
+      "prompt": "rounded square head",
+      "role": "top",
+      "color": "#6842b9",
+      "primitives": [
+        {
+          "primitive": "box",
+          "label": "rounded square head",
+          "width": 86,
+          "height": 72,
+          "x": 0.5,
+          "y": 0.42
+        }
+      ],
+      "manifest": "part-manifest-rounded-square-head",
+      "screenshot": "docs/assets/poster-robot-demo/rounded-square-head.png"
+    },
+    {
+      "instance": "CAD Agent Instance 02",
+      "id": "circular-eyes",
+      "prompt": "circular eyes",
+      "role": "top",
+      "color": "#a8b3bd",
+      "primitives": [
+        {
+          "primitive": "sphere",
+          "label": "left circular eyes",
+          "width": 42,
+          "height": 42,
+          "x": 0.43,
+          "y": 0.42
+        },
+        {
+          "primitive": "sphere",
+          "label": "right circular eyes",
+          "width": 42,
+          "height": 42,
+          "x": 0.57,
+          "y": 0.42
+        }
+      ],
+      "manifest": "part-manifest-circular-eyes",
+      "screenshot": "docs/assets/poster-robot-demo/circular-eyes.png"
+    },
+    {
+      "instance": "CAD Agent Instance 03",
+      "id": "eye-pupils",
+      "prompt": "eye pupils",
+      "role": "top",
+      "color": "#182330",
+      "primitives": [
+        {
+          "primitive": "sphere",
+          "label": "left eye pupils",
+          "width": 22,
+          "height": 22,
+          "x": 0.43,
+          "y": 0.42
+        },
+        {
+          "primitive": "sphere",
+          "label": "right eye pupils",
+          "width": 22,
+          "height": 22,
+          "x": 0.57,
+          "y": 0.42
+        }
+      ],
+      "manifest": "part-manifest-eye-pupils",
+      "screenshot": "docs/assets/poster-robot-demo/eye-pupils.png"
+    },
+    {
+      "instance": "CAD Agent Instance 04",
+      "id": "smile",
+      "prompt": "smile",
+      "role": "top",
+      "color": "#182330",
+      "primitives": [
+        {
+          "primitive": "box",
+          "label": "smile",
+          "width": 38,
+          "height": 9,
+          "x": 0.5,
+          "y": 0.47
+        }
+      ],
+      "manifest": "part-manifest-smile",
+      "screenshot": "docs/assets/poster-robot-demo/smile.png"
+    },
+    {
+      "instance": "CAD Agent Instance 05",
+      "id": "rounded-body",
+      "prompt": "rounded body",
+      "role": "core",
+      "color": "#2f9e59",
+      "primitives": [
+        {
+          "primitive": "box",
+          "label": "rounded body",
+          "width": 112,
+          "height": 92,
+          "x": 0.5,
+          "y": 0.55
+        }
+      ],
+      "manifest": "part-manifest-rounded-body",
+      "screenshot": "docs/assets/poster-robot-demo/rounded-body.png"
+    },
+    {
+      "instance": "CAD Agent Instance 06",
+      "id": "chest-screen-frame",
+      "prompt": "chest screen frame",
+      "role": "front",
+      "color": "#e7b32b",
+      "primitives": [
+        {
+          "primitive": "box",
+          "label": "chest screen frame",
+          "width": 72,
+          "height": 54,
+          "x": 0.5,
+          "y": 0.54
+        }
+      ],
+      "manifest": "part-manifest-chest-screen-frame",
+      "screenshot": "docs/assets/poster-robot-demo/chest-screen-frame.png"
+    },
+    {
+      "instance": "CAD Agent Instance 07",
+      "id": "inner-chest-display",
+      "prompt": "inner chest display",
+      "role": "front",
+      "color": "#182330",
+      "primitives": [
+        {
+          "primitive": "box",
+          "label": "inner chest display",
+          "width": 48,
+          "height": 28,
+          "x": 0.5,
+          "y": 0.54
+        }
+      ],
+      "manifest": "part-manifest-inner-chest-display",
+      "screenshot": "docs/assets/poster-robot-demo/inner-chest-display.png"
+    },
+    {
+      "instance": "CAD Agent Instance 08",
+      "id": "segmented-cylinder-arms",
+      "prompt": "segmented cylinder arms",
+      "role": "side",
+      "color": "#ed7a22",
+      "primitives": [
+        {
+          "primitive": "cylinder",
+          "label": "left segmented cylinder arms",
+          "width": 88,
+          "height": 34,
+          "x": 0.35,
+          "y": 0.52
+        },
+        {
+          "primitive": "cylinder",
+          "label": "right segmented cylinder arms",
+          "width": 88,
+          "height": 34,
+          "x": 0.65,
+          "y": 0.52
+        }
+      ],
+      "manifest": "part-manifest-segmented-cylinder-arms",
+      "screenshot": "docs/assets/poster-robot-demo/segmented-cylinder-arms.png"
+    },
+    {
+      "instance": "CAD Agent Instance 09",
+      "id": "claw-hands",
+      "prompt": "claw hands",
+      "role": "side",
+      "color": "#a8b3bd",
+      "primitives": [
+        {
+          "primitive": "sphere",
+          "label": "left claw hands",
+          "width": 28,
+          "height": 28,
+          "x": 0.28,
+          "y": 0.58
+        },
+        {
+          "primitive": "sphere",
+          "label": "right claw hands",
+          "width": 28,
+          "height": 28,
+          "x": 0.72,
+          "y": 0.58
+        }
+      ],
+      "manifest": "part-manifest-claw-hands",
+      "screenshot": "docs/assets/poster-robot-demo/claw-hands.png"
+    },
+    {
+      "instance": "CAD Agent Instance 10",
+      "id": "wheel-feet",
+      "prompt": "wheel feet",
+      "role": "bottom",
+      "color": "#1664c0",
+      "primitives": [
+        {
+          "primitive": "cylinder",
+          "label": "left wheel feet",
+          "width": 72,
+          "height": 58,
+          "x": 0.42,
+          "y": 0.68
+        },
+        {
+          "primitive": "cylinder",
+          "label": "right wheel feet",
+          "width": 72,
+          "height": 58,
+          "x": 0.58,
+          "y": 0.68
+        }
+      ],
+      "manifest": "part-manifest-wheel-feet",
+      "screenshot": "docs/assets/poster-robot-demo/wheel-feet.png"
+    },
+    {
+      "instance": "CAD Agent Instance 11",
+      "id": "wheel-hubs",
+      "prompt": "wheel hubs",
+      "role": "bottom",
+      "color": "#182330",
+      "primitives": [
+        {
+          "primitive": "sphere",
+          "label": "left wheel hubs",
+          "width": 22,
+          "height": 22,
+          "x": 0.42,
+          "y": 0.68
+        },
+        {
+          "primitive": "sphere",
+          "label": "right wheel hubs",
+          "width": 22,
+          "height": 22,
+          "x": 0.58,
+          "y": 0.68
+        }
+      ],
+      "manifest": "part-manifest-wheel-hubs",
+      "screenshot": "docs/assets/poster-robot-demo/wheel-hubs.png"
+    }
+  ]
+}

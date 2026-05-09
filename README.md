@@ -34,7 +34,7 @@ The user only says what they want. The main agent decides which specialist agent
 
 Example prompt:
 
-> Make a cute desktop robot with a purple head, green body, orange arms, blue wheel feet, and a small chest screen.
+> Build a polished poster-style toy robot with a purple rounded square head, large silver circular eyes, black eye pupils, a small black smile, a green rounded body, a yellow chest screen frame, a black inner chest display, orange segmented cylinder arms, silver claw hands, blue wheel feet, and dark wheel hubs.
 
 The system does the following:
 
@@ -48,6 +48,36 @@ The system does the following:
 8. The monitor UI streams screenshots, status, live view URLs, action counts, and the final factory manifest.
 
 The important part: the workers are not five different hardcoded agents. They are copies of the same CAD Agent template, each controlled by a different prompt.
+
+## Latest Demo Run
+
+Run captured from the live monitor UI: `monitor-20260509152134`
+
+Task prompt:
+
+> Build a polished poster-style toy robot with a purple rounded square head, large silver circular eyes, black eye pupils, a small black smile, a green rounded body, a yellow chest screen frame, a black inner chest display, orange segmented cylinder arms, silver claw hands, blue wheel feet, and dark wheel hubs.
+
+Final assembly result:
+
+![Final assembled poster robot](docs/assets/poster-robot-demo/dispatch-assembly.png)
+
+This run created **11 copied CAD Agent instances** from the same CAD Agent template. The Assembly Agent imported **11 part manifests** containing **17 source primitive placements**.
+
+| CAD Agent instance | Part prompt | Output manifest | Screenshot |
+| --- | --- | --- | --- |
+| CAD Agent Instance 01 | `rounded square head` | `part-manifest-rounded-square-head` | <img src="docs/assets/poster-robot-demo/rounded-square-head.png" width="180" alt="Rounded square head worker screenshot"> |
+| CAD Agent Instance 02 | `circular eyes` | `part-manifest-circular-eyes` | <img src="docs/assets/poster-robot-demo/circular-eyes.png" width="180" alt="Circular eyes worker screenshot"> |
+| CAD Agent Instance 03 | `eye pupils` | `part-manifest-eye-pupils` | <img src="docs/assets/poster-robot-demo/eye-pupils.png" width="180" alt="Eye pupils worker screenshot"> |
+| CAD Agent Instance 04 | `smile` | `part-manifest-smile` | <img src="docs/assets/poster-robot-demo/smile.png" width="180" alt="Smile worker screenshot"> |
+| CAD Agent Instance 05 | `rounded body` | `part-manifest-rounded-body` | <img src="docs/assets/poster-robot-demo/rounded-body.png" width="180" alt="Rounded body worker screenshot"> |
+| CAD Agent Instance 06 | `chest screen frame` | `part-manifest-chest-screen-frame` | <img src="docs/assets/poster-robot-demo/chest-screen-frame.png" width="180" alt="Chest screen frame worker screenshot"> |
+| CAD Agent Instance 07 | `inner chest display` | `part-manifest-inner-chest-display` | <img src="docs/assets/poster-robot-demo/inner-chest-display.png" width="180" alt="Inner chest display worker screenshot"> |
+| CAD Agent Instance 08 | `segmented cylinder arms` | `part-manifest-segmented-cylinder-arms` | <img src="docs/assets/poster-robot-demo/segmented-cylinder-arms.png" width="180" alt="Segmented cylinder arms worker screenshot"> |
+| CAD Agent Instance 09 | `claw hands` | `part-manifest-claw-hands` | <img src="docs/assets/poster-robot-demo/claw-hands.png" width="180" alt="Claw hands worker screenshot"> |
+| CAD Agent Instance 10 | `wheel feet` | `part-manifest-wheel-feet` | <img src="docs/assets/poster-robot-demo/wheel-feet.png" width="180" alt="Wheel feet worker screenshot"> |
+| CAD Agent Instance 11 | `wheel hubs` | `part-manifest-wheel-hubs` | <img src="docs/assets/poster-robot-demo/wheel-hubs.png" width="180" alt="Wheel hubs worker screenshot"> |
+
+The structured run manifest is saved at [`docs/assets/poster-robot-demo/run.json`](docs/assets/poster-robot-demo/run.json).
 
 ## Why This Matters
 
@@ -193,6 +223,7 @@ demo-results/
 docs/assets/
   computer-use-cad-platform-poster.png
                             Poster / flowchart for the hackathon pitch
+  poster-robot-demo/        Current task prompt, worker screenshots, final assembly screenshot, and run manifest
 ```
 
 ## How To Demo It To Judges
