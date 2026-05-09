@@ -242,16 +242,12 @@ async function bootRun(run) {
     run.status = 'clearing-projects';
     touch(run);
     await stopPreviousRuns(run);
-    run.cleanup = { status: 'background', scanned: 0, deleted: 0 };
-    clearFactoryBrowsers({ before: run.createdAt })
-      .then((cleanup) => {
-        run.cleanup = cleanup;
-        touch(run);
-      })
-      .catch((error) => {
-        run.cleanup = { status: 'failed', scanned: 0, deleted: 0, error: error.message };
-        touch(run);
-      });
+    run.cleanup = { status: 'running', scanned: 0, deleted: 0 };
+    try {
+      run.cleanup = await clearFactoryBrowsers({ before: run.createdAt });
+    } catch (error) {
+      run.cleanup = { status: 'failed', scanned: 0, deleted: 0, error: error.message };
+    }
     touch(run);
   }
 
@@ -1115,7 +1111,7 @@ function buildAssetSpecs(prompt) {
   const descriptors = extractPartDescriptors(prompt);
   const sourceDescriptors = descriptors.length ? descriptors : fallbackPartDescriptors(prompt);
   const usedIds = new Map();
-  return sourceDescriptors.slice(0, 6).map((descriptor, index, list) => {
+  return sourceDescriptors.slice(0, 12).map((descriptor, index, list) => {
     const label = descriptor.label || `module ${index + 1}`;
     const role = inferPartRole(label, index, list.length);
     const color = descriptor.color || autoColor(index);
@@ -1196,17 +1192,18 @@ const COLOR_WORDS = [
   { words: ['blue', 'navy'], hex: '#1664c0' },
   { words: ['purple', 'violet'], hex: '#6842b9' },
   { words: ['pink', 'magenta'], hex: '#d94fa3' },
+  { words: ['gray', 'grey', 'silver', 'metal', 'metallic'], hex: '#a8b3bd' },
   { words: ['black', 'dark'], hex: '#182330' },
-  { words: ['white', 'silver'], hex: '#d7e1ea' },
+  { words: ['white'], hex: '#d7e1ea' },
 ];
 
 const AUTO_COLORS = ['#2f9e59', '#6842b9', '#ed7a22', '#1664c0', '#e7b32b', '#38b6d8'];
 
 const ROLE_HINTS = [
-  { role: 'top', words: ['top', 'upper', 'roof', 'cap', 'head', 'face', 'hat', 'antenna'] },
-  { role: 'side', words: ['side', 'arm', 'arms', 'wing', 'wings', 'handle', 'handles', 'fin', 'fins'] },
-  { role: 'bottom', words: ['bottom', 'base', 'lower', 'foot', 'feet', 'leg', 'legs', 'wheel', 'wheels', 'stand'] },
-  { role: 'front', words: ['front', 'screen', 'panel', 'button', 'buttons', 'badge', 'sensor', 'light', 'detail'] },
+  { role: 'top', words: ['top', 'upper', 'roof', 'cap', 'head', 'face', 'eye', 'eyes', 'pupil', 'pupils', 'mouth', 'smile', 'hat', 'antenna'] },
+  { role: 'side', words: ['side', 'arm', 'arms', 'hand', 'hands', 'claw', 'claws', 'wing', 'wings', 'handle', 'handles', 'fin', 'fins'] },
+  { role: 'bottom', words: ['bottom', 'base', 'lower', 'foot', 'feet', 'leg', 'legs', 'wheel', 'wheels', 'hub', 'hubs', 'stand'] },
+  { role: 'front', words: ['front', 'screen', 'display', 'panel', 'button', 'buttons', 'badge', 'sensor', 'light', 'detail'] },
   { role: 'core', words: ['body', 'torso', 'core', 'main', 'primary', 'center', 'hull', 'frame'] },
 ];
 
@@ -1220,9 +1217,9 @@ function inferPartRole(label, index) {
 function buildPrimitivePlacements(spec) {
   const pair = shouldUsePairedPrimitive(spec.label, spec.role);
   const primitive = primitiveForLabel(spec.label, spec.role);
-  const points = pair ? pairPointsForRole(spec.role) : [singlePointForRole(spec.role)];
+  const points = placementPointsForSpec(spec, pair);
   return points.map((point, index) => {
-    const size = sizeForPrimitive(primitive, spec.role, pair);
+    const size = sizeForPrimitive(primitive, spec.role, pair, spec.label);
     return {
       primitive,
       x: point.x,
@@ -1236,15 +1233,24 @@ function buildPrimitivePlacements(spec) {
 
 function primitiveForLabel(label, role) {
   const text = String(label).toLowerCase();
+  if (/\b(eye|eyes|pupil|pupils|hub|hubs|hand|hands|claw|claws|button|sensor|light|orb|ball)\b/.test(text)) return 'sphere';
   if (/\b(wheel|arm|leg|rod|bar|handle|axle)\b/.test(text) || ['side', 'bottom'].includes(role)) return 'cylinder';
-  if (/\b(button|sensor|light|eye|orb|ball)\b/.test(text)) return 'sphere';
   if (/\b(cone|spike|fin|wing)\b/.test(text)) return 'cone';
   return 'box';
 }
 
 function shouldUsePairedPrimitive(label, role) {
   const text = String(label).toLowerCase();
-  return /\b(pair|left|right|arms|wings|handles|wheels|feet|legs)\b/.test(text) || ['side', 'bottom'].includes(role);
+  return /\b(pair|left|right|arms|hands|claws|wings|handles|wheels|feet|legs|eyes|pupils|hubs)\b/.test(text) || ['side', 'bottom'].includes(role);
+}
+
+function placementPointsForSpec(spec, pair) {
+  const text = String(spec.label || '').toLowerCase();
+  if (/\b(eye|eyes|pupil|pupils)\b/.test(text)) return [{ x: 0.43, y: 0.42 }, { x: 0.57, y: 0.42 }];
+  if (/\b(smile|mouth)\b/.test(text)) return [{ x: 0.5, y: 0.47 }];
+  if (/\b(hub|hubs)\b/.test(text)) return [{ x: 0.42, y: 0.68 }, { x: 0.58, y: 0.68 }];
+  if (/\b(hand|hands|claw|claws)\b/.test(text)) return [{ x: 0.28, y: 0.58 }, { x: 0.72, y: 0.58 }];
+  return pair ? pairPointsForRole(spec.role) : [singlePointForRole(spec.role)];
 }
 
 function singlePointForRole(role) {
@@ -1277,9 +1283,16 @@ function assemblyAnchorForRole(role, index, total) {
   return { x: roundRatio(0.5 + spread), y: 0.5 };
 }
 
-function sizeForPrimitive(primitive, role, paired) {
+function sizeForPrimitive(primitive, role, paired, label = '') {
+  const text = String(label).toLowerCase();
+  if (/\b(pupil|pupils|hub|hubs)\b/.test(text)) return { width: 22, height: 22 };
+  if (/\b(eye|eyes)\b/.test(text)) return { width: 42, height: 42 };
+  if (/\b(hand|hands|claw|claws)\b/.test(text)) return { width: 28, height: 28 };
+  if (/\b(smile|mouth)\b/.test(text)) return { width: 38, height: 9 };
+  if (/\b(inner|display)\b/.test(text)) return { width: 48, height: 28 };
+  if (/\b(screen|panel)\b/.test(text)) return { width: 72, height: 54 };
   if (primitive === 'sphere') return { width: role === 'front' ? 24 : 32, height: role === 'front' ? 24 : 32 };
-  if (primitive === 'cylinder') return paired ? { width: 92, height: role === 'bottom' ? 36 : 24 } : { width: 86, height: 54 };
+  if (primitive === 'cylinder') return paired ? { width: role === 'bottom' ? 72 : 88, height: role === 'bottom' ? 58 : 34 } : { width: 86, height: 54 };
   if (primitive === 'cone') return { width: 80, height: 78 };
   if (role === 'core') return { width: 112, height: 92 };
   if (role === 'top') return { width: 86, height: 72 };
