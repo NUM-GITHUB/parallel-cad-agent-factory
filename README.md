@@ -1,6 +1,6 @@
 # Parallel CAD Agent Factory
 
-Hackathon MVP for a **Computer Use** workflow: split one 3D modeling prompt into independent part-building tasks, run several Kernel browser computers in parallel, and assemble the resulting parts into one robot preview.
+Hackathon MVP for a **Computer Use** workflow: split one 3D modeling prompt into independent part-building tasks, run several Kernel browser computers in parallel, let a Northstar computer-use agent manage each Kernel, and assemble the resulting parts into one robot preview.
 
 ## Demo Idea
 
@@ -16,7 +16,23 @@ The system turns that into:
 - `feet` worker
 - `assembler` worker
 
-Each worker opens its own Kernel browser and uses OS-level computer actions to drag visible CAD primitives into a workplane. The assembler then combines the worker manifests into a final robot preview.
+The intended architecture is prompt-driven:
+
+- The main agent only decomposes the user's request and writes worker prompts.
+- Each worker gets its own Kernel browser computer.
+- Each Kernel is controlled by its own Northstar computer-use loop.
+- The assembler gets its own Kernel + Northstar loop, receives worker manifests/screenshots, and assembles the final combined preview through the UI.
+
+That means the main agent is not hardcoding the modeling actions. It assigns work like "build the head" or "build the arms"; each Northstar worker observes its own screen and decides the UI actions for that part.
+
+This follows the Lightcone + Kernel pattern: Kernel supplies the browser computer, Lightcone/Northstar decides the next computer action from screenshots, then the loop executes that action and sends back the next screenshot.
+
+## Demo Modes
+
+This repo includes two modes:
+
+- `npm run demo`: deterministic Kernel baseline. Useful for a reliable recording if network/API latency is bad during judging.
+- `npm run demo:northstar`: intended hackathon architecture. The main planner writes prompts, then each worker and the assembler run separate Northstar + Kernel computer-use loops.
 
 ## Run The Local UI
 
@@ -30,7 +46,7 @@ Open:
 http://127.0.0.1:8780/parallel-cad.html
 ```
 
-## Run The Multi-Kernel Demo
+## Run The Baseline Multi-Kernel Demo
 
 Requires:
 
@@ -45,6 +61,24 @@ The run writes artifacts to:
 
 ```text
 .lightcone-runs/parallel-cad-kernel-<timestamp>/
+```
+
+## Run The Northstar + Kernel Demo
+
+Requires:
+
+- `TZAFON_API_KEY` set in the environment or in `.env.local`
+- Kernel CLI installed and authenticated
+- `npm install` already run
+
+```bash
+npm run demo:northstar -- "Make a cute desktop robot with a purple head, green body, orange arms, blue wheel feet, and a small chest screen."
+```
+
+The run writes artifacts to:
+
+```text
+.lightcone-runs/northstar-parallel-cad-<timestamp>/
 ```
 
 ## Included Recorded Run
@@ -77,7 +111,10 @@ public/
 
 scripts/
   parallel-cad-kernel-demo.mjs
-                            Real Kernel orchestration demo
+                            Deterministic Kernel baseline demo
+
+  northstar-parallel-kernel-demo.mjs
+                            Main planner + parallel Northstar worker demo
 
 demo-results/latest/
   result.html              Recorded run report
@@ -88,4 +125,3 @@ demo-results/latest/
 ## Why This Matters
 
 Single-agent computer use is often bottlenecked by UI latency. CAD tasks are naturally decomposable: head, body, arms, legs, accessories, colors, and final alignment can be worked on independently. This demo shows the core pattern for turning one slow UI operator into a parallel agent factory.
-

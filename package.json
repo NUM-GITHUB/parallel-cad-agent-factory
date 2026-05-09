@@ -8,10 +8,13 @@
     "serve": "python3 -m http.server 8780 --bind 127.0.0.1 --directory public",
     "serve:latest": "python3 -m http.server 8781 --bind 127.0.0.1 --directory demo-results/latest",
     "demo": "node scripts/parallel-cad-kernel-demo.mjs",
-    "check": "node --check public/parallel-cad.js && node --check scripts/parallel-cad-kernel-demo.mjs"
+    "demo:northstar": "node scripts/northstar-parallel-kernel-demo.mjs",
+    "check": "node --check public/parallel-cad.js && node --check scripts/parallel-cad-kernel-demo.mjs && node --check scripts/northstar-parallel-kernel-demo.mjs"
+  },
+  "dependencies": {
+    "@tzafon/lightcone": "^0.14.0"
   },
   "engines": {
     "node": ">=20"
   }
 }
-
