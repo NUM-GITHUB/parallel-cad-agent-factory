@@ -24,7 +24,7 @@ function reset() {
   kernelCountEl.textContent = "0";
   refreshRateEl.textContent = "waiting";
   planList.innerHTML = "";
-  monitorGrid.innerHTML = `<div class="empty-state">Start a run to create Kernel computers and monitor their screenshots.</div>`;
+  monitorGrid.innerHTML = `<div class="empty-state">Run the factory to clone CAD Agent instances and monitor their Kernel computers.</div>`;
   manifestEl.textContent = "{}";
   setStatus(plannerStatus, "idle", "idle");
   setStatus(monitorStatus, "idle", "idle");
@@ -42,7 +42,7 @@ async function startRun() {
   setStatus(plannerStatus, "running", "planning");
   setStatus(monitorStatus, "running", "creating");
   setStatus(manifestStatus, "running", "pending");
-  monitorGrid.innerHTML = `<div class="empty-state">Creating a new Kernel set and switching the monitor...</div>`;
+  monitorGrid.innerHTML = `<div class="empty-state">Creating fresh CAD Agent instances on new Kernel computers...</div>`;
 
   try {
     const run = await api("/api/runs", {
@@ -146,7 +146,7 @@ function renderPlan(run) {
   planList.innerHTML = workers
     .map(
       (worker) => `<li>
-        <strong>${escapeHtml(worker.title)}:</strong>
+        <strong>${escapeHtml(worker.template || worker.title)}${worker.assignment ? ` (${escapeHtml(worker.assignment)})` : ""}:</strong>
         ${escapeHtml(worker.prompt)}
       </li>`,
     )
@@ -166,7 +166,7 @@ function renderMonitor(run) {
         <div class="kernel-top">
           <div class="kernel-title">
             <h3>${escapeHtml(worker.title)}</h3>
-            <p>${escapeHtml(worker.role)} · ${escapeHtml(worker.id)}</p>
+            <p>${escapeHtml(worker.template || worker.role)} · prompt: ${escapeHtml(worker.assignment || worker.id)}</p>
           </div>
           <span class="kernel-state ${escapeAttr(worker.agentStatus || worker.status)}">${escapeHtml(worker.agentStatus || worker.status)}</span>
         </div>
@@ -196,10 +196,13 @@ function renderManifest(run) {
       runId: run.id,
       status: run.status,
       strategy: run.strategy,
+      factory: run.factory,
       prompt: run.prompt,
-      kernels: run.workers.map((worker) => ({
+      agentInstances: run.workers.map((worker) => ({
         id: worker.id,
         role: worker.role,
+        template: worker.template,
+        assignment: worker.assignment,
         status: worker.status,
         agentStatus: worker.agentStatus,
         agentStep: worker.agentStep,

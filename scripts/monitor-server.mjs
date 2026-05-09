@@ -42,7 +42,7 @@ const server = http.createServer(async (request, response) => {
 });
 
 server.listen(activePort, '127.0.0.1', () => {
-  console.log(`Parallel CAD monitor: http://127.0.0.1:${activePort}/parallel-cad.html`);
+  console.log(`CAD Agent Factory: http://127.0.0.1:${activePort}/parallel-cad.html`);
 });
 
 async function findAvailablePort(startPort) {
@@ -230,7 +230,7 @@ async function bootWorker(run, worker) {
     ]);
 
     worker.status = 'ready';
-    worker.agentStatus = northstarClient ? (worker.role === 'assembler' ? 'waiting' : 'queued') : 'disabled';
+    worker.agentStatus = northstarClient ? (isDispatchAssemblyAgent(worker) ? 'waiting' : 'queued') : 'disabled';
     touch(run);
     await captureWorker(worker);
   } catch (error) {
@@ -311,8 +311,8 @@ function failRun(run, error) {
 }
 
 async function runAgentOrchestration(run) {
-  const partWorkers = run.workers.filter((worker) => worker.role !== 'assembler' && worker.status !== 'failed');
-  const assembler = run.workers.find((worker) => worker.role === 'assembler');
+  const partWorkers = run.workers.filter((worker) => isCadAgentInstance(worker) && worker.status !== 'failed');
+  const assembler = run.workers.find((worker) => isDispatchAssemblyAgent(worker));
 
   await Promise.allSettled(partWorkers.map((worker) => runNorthstarAgent(run, worker, northstarWorkerMaxSteps)));
 
@@ -454,11 +454,11 @@ async function runNorthstarAgent(run, worker, maxSteps) {
 }
 
 function buildAgentPrompt(run, worker) {
-  if (worker.role === 'assembler') {
+  if (isDispatchAssemblyAgent(worker)) {
     return `${worker.prompt}
 
-You are the dedicated Northstar computer-use agent for the assembler Kernel.
-The part worker contracts are:
+You are the Dispatch & Assembly Agent. You receive manifests from copied CAD Agent instances, then assemble their outputs in this Kernel.
+The CAD Agent instance contracts are:
 ${JSON.stringify(run.plan.workers.map((item) => item.contract), null, 2)}
 
 Use the visible MiniCAD UI directly:
@@ -471,7 +471,7 @@ Do not ask the main agent for coordinates. Do not rely on hidden scripts. Use on
 
   return `${worker.prompt}
 
-You are the dedicated Northstar computer-use agent for this one Kernel worker.
+You are one copied instance of the same CAD Agent template. The Dispatch & Assembly Agent gave this instance a part-specific prompt.
 You control the visible MiniCAD webpage in this Kernel browser.
 
 Use the visible UI directly:
@@ -600,8 +600,10 @@ function makePlan(rawPrompt) {
 
   add(workers, {
     id: 'body',
-    title: 'Body Kernel',
-    role: 'part-worker',
+    title: 'CAD Agent Instance 01',
+    role: 'cad-agent',
+    template: 'CAD Agent',
+    assignment: 'body',
     color: '#2f9e59',
     prompt: `Build only the core body/torso for this object: "${prompt}". Return dimensions, color, and anchor points.`,
     contract: { part: 'body', anchor: 'center', output: 'body geometry and anchors' },
@@ -610,8 +612,10 @@ function makePlan(rawPrompt) {
   if (mentions(lower, ['robot', 'head', 'face', 'eyes', 'antenna'])) {
     add(workers, {
       id: 'head',
-      title: 'Head Kernel',
-      role: 'part-worker',
+      title: `CAD Agent Instance ${String(workers.length + 1).padStart(2, '0')}`,
+      role: 'cad-agent',
+      template: 'CAD Agent',
+      assignment: 'head',
       color: '#6842b9',
       prompt: `Build only the head/face module for this object: "${prompt}". Include visible face details if requested.`,
       contract: { part: 'head', anchor: 'top of body', output: 'head geometry and anchors' },
@@ -621,8 +625,10 @@ function makePlan(rawPrompt) {
   if (mentions(lower, ['arm', 'arms', 'hand', 'hands', 'claw', 'claws'])) {
     add(workers, {
       id: 'arms',
-      title: 'Arms Kernel',
-      role: 'part-worker',
+      title: `CAD Agent Instance ${String(workers.length + 1).padStart(2, '0')}`,
+      role: 'cad-agent',
+      template: 'CAD Agent',
+      assignment: 'arms',
       color: '#ed7a22',
       prompt: `Build only the left and right arm modules for this object: "${prompt}". Keep symmetry and connector anchors.`,
       contract: { part: 'arms', anchor: 'left and right body sides', output: 'arm geometry and anchors' },
@@ -632,8 +638,10 @@ function makePlan(rawPrompt) {
   if (mentions(lower, ['foot', 'feet', 'leg', 'legs', 'wheel', 'wheels', 'base'])) {
     add(workers, {
       id: 'feet',
-      title: 'Feet Kernel',
-      role: 'part-worker',
+      title: `CAD Agent Instance ${String(workers.length + 1).padStart(2, '0')}`,
+      role: 'cad-agent',
+      template: 'CAD Agent',
+      assignment: 'feet',
       color: '#1664c0',
       prompt: `Build only the feet/base/wheels for this object: "${prompt}". Return bottom anchors for assembly.`,
       contract: { part: 'feet', anchor: 'bottom of body', output: 'feet geometry and anchors' },
@@ -643,8 +651,10 @@ function makePlan(rawPrompt) {
   if (mentions(lower, ['wing', 'wings', 'fin', 'fins'])) {
     add(workers, {
       id: 'wings',
-      title: 'Wings Kernel',
-      role: 'part-worker',
+      title: `CAD Agent Instance ${String(workers.length + 1).padStart(2, '0')}`,
+      role: 'cad-agent',
+      template: 'CAD Agent',
+      assignment: 'wings',
       color: '#38b6d8',
       prompt: `Build only the wing/fin modules for this object: "${prompt}". Return left/right anchors.`,
       contract: { part: 'wings', anchor: 'side of body', output: 'wing geometry and anchors' },
@@ -654,8 +664,10 @@ function makePlan(rawPrompt) {
   if (mentions(lower, ['screen', 'button', 'panel', 'antenna', 'hat', 'sensor', 'accessory'])) {
     add(workers, {
       id: 'details',
-      title: 'Details Kernel',
-      role: 'part-worker',
+      title: `CAD Agent Instance ${String(workers.length + 1).padStart(2, '0')}`,
+      role: 'cad-agent',
+      template: 'CAD Agent',
+      assignment: 'details',
       color: '#e7b32b',
       prompt: `Build only the decorative/details module for this object: "${prompt}". Focus on screens, buttons, antennas, sensors, or accessories.`,
       contract: { part: 'details', anchor: 'front/top detail anchors', output: 'detail geometry and anchors' },
@@ -664,20 +676,26 @@ function makePlan(rawPrompt) {
 
   while (workers.length < 4) {
     const id = ['head', 'arms', 'feet', 'details'].find((candidate) => !workers.some((worker) => worker.id === candidate));
-    const fallback = fallbackWorker(id, prompt);
+    const fallback = fallbackWorker(id, prompt, workers.length + 1);
     add(workers, fallback);
   }
 
   return {
     prompt,
-    strategy: 'main-agent-writes-prompts-each-kernel-has-own-agent',
+    strategy: 'agent-factory-one-cad-agent-template-many-prompted-instances',
+    factory: {
+      dispatcher: 'Dispatch & Assembly Agent',
+      workerTemplate: 'CAD Agent',
+    },
     workers,
     assembler: {
-      id: 'assembler',
-      title: 'Assembler Kernel',
-      role: 'assembler',
+      id: 'dispatch-assembly',
+      title: 'Dispatch & Assembly Agent',
+      role: 'dispatch-assembly-agent',
+      template: 'Dispatch & Assembly Agent',
+      assignment: 'dispatch and final assembly',
       color: '#182330',
-      prompt: `Assemble the final model for this prompt: "${prompt}". Use the worker contracts, align anchors, inspect screenshots, and produce the final combined design.`,
+      prompt: `Dispatch this request into part-specific prompts for copied CAD Agent instances, then assemble the final model for: "${prompt}". Use worker contracts, align anchors, inspect screenshots, and produce the final combined design.`,
       contract: { part: 'final assembly', anchor: 'scene', output: 'assembled model and QA screenshot' },
     },
   };
@@ -687,18 +705,20 @@ function add(workers, worker) {
   if (!workers.some((item) => item.id === worker.id)) workers.push(worker);
 }
 
-function fallbackWorker(id, prompt) {
+function fallbackWorker(id, prompt, instanceNumber) {
   const specs = {
-    head: ['Head Kernel', '#6842b9', 'Build the top/head or front-facing identity module.'],
-    arms: ['Arms Kernel', '#ed7a22', 'Build side attachments or manipulator modules.'],
-    feet: ['Feet Kernel', '#1664c0', 'Build the bottom supports, base, wheels, or legs.'],
-    details: ['Details Kernel', '#e7b32b', 'Build decorative details, controls, lights, panels, or sensors.'],
+    head: ['#6842b9', 'Build the top/head or front-facing identity module.'],
+    arms: ['#ed7a22', 'Build side attachments or manipulator modules.'],
+    feet: ['#1664c0', 'Build the bottom supports, base, wheels, or legs.'],
+    details: ['#e7b32b', 'Build decorative details, controls, lights, panels, or sensors.'],
   };
-  const [title, color, instruction] = specs[id];
+  const [color, instruction] = specs[id];
   return {
     id,
-    title,
-    role: 'part-worker',
+    title: `CAD Agent Instance ${String(instanceNumber).padStart(2, '0')}`,
+    role: 'cad-agent',
+    template: 'CAD Agent',
+    assignment: id,
     color,
     prompt: `${instruction} User request: "${prompt}". Return geometry, dimensions, and anchor metadata.`,
     contract: { part: id, anchor: 'auto', output: `${id} geometry and anchors` },
@@ -709,8 +729,16 @@ function mentions(text, words) {
   return words.some((word) => text.includes(word));
 }
 
+function isCadAgentInstance(worker) {
+  return worker.role === 'cad-agent';
+}
+
+function isDispatchAssemblyAgent(worker) {
+  return worker.role === 'dispatch-assembly-agent';
+}
+
 function kernelWorkbenchHtml(run, worker) {
-  const isAssembler = worker.role === 'assembler';
+  const isAssembler = isDispatchAssemblyAgent(worker);
   const contracts = run.plan.workers.map((item) => item.contract);
   const palette = isAssembler ? assemblyPaletteHtml(run) : primitivePaletteHtml(worker);
   const selectedDefault = isAssembler ? 'body' : 'box';
@@ -720,7 +748,7 @@ function kernelWorkbenchHtml(run, worker) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(worker.title)} - Parallel CAD Monitor</title>
+  <title>${escapeHtml(worker.title)} - CAD Agent Factory</title>
   <style>
     :root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #182330; background: #f3f6f8; }
     body { margin: 0; min-height: 100vh; overflow: hidden; }
@@ -790,7 +818,7 @@ function kernelWorkbenchHtml(run, worker) {
   <header>
     <div>
       <h1>${escapeHtml(worker.title)}</h1>
-      <p class="sub">${escapeHtml(isAssembler ? 'Final assembly agent' : 'Dedicated part-building agent')} · run ${escapeHtml(run.id)}</p>
+      <p class="sub">${escapeHtml(isAssembler ? 'Dispatch, routing, and final assembly' : 'Copied CAD Agent template instance')} · run ${escapeHtml(run.id)}</p>
     </div>
     <div class="clock">live clock<strong id="clock">--:--:--</strong></div>
     <div class="badge"><span class="heartbeat"></span>Kernel ready</div>
@@ -823,7 +851,7 @@ function kernelWorkbenchHtml(run, worker) {
         <strong>Output contract</strong>
         <pre>${escapeHtml(JSON.stringify(worker.contract, null, 2))}</pre>
       </div>
-      ${isAssembler ? `<div class="contract"><strong>Worker contracts</strong><pre>${escapeHtml(JSON.stringify(contracts, null, 2))}</pre></div>` : ''}
+      ${isAssembler ? `<div class="contract"><strong>CAD Agent contracts</strong><pre>${escapeHtml(JSON.stringify(contracts, null, 2))}</pre></div>` : ''}
     </aside>
   </main>
   <script>
@@ -928,7 +956,7 @@ function primitivePaletteHtml(worker) {
       <button class="tool" data-shape="sphere" type="button" aria-label="Sphere primitive"><span class="thumb sphere"></span><span>Sphere</span></button>
       <button class="tool" data-shape="cone" type="button" aria-label="Cone primitive"><span class="thumb cone"></span><span>Cone</span></button>
     </div>
-    <div class="contract"><strong>Agent owner</strong><pre>${escapeHtml(JSON.stringify({ northstar: true, kernel: worker.id }, null, 2))}</pre></div>`;
+    <div class="contract"><strong>Agent owner</strong><pre>${escapeHtml(JSON.stringify({ template: 'CAD Agent', instance: worker.title, assignment: worker.assignment, kernel: worker.id }, null, 2))}</pre></div>`;
 }
 
 function assemblyPaletteHtml(run) {
@@ -940,7 +968,7 @@ function assemblyPaletteHtml(run) {
   });
   return `<h2>Assembly Parts</h2>
     <div class="tool-grid assembly">${tools.join('')}</div>
-    <div class="contract"><strong>Agent owner</strong><pre>${escapeHtml(JSON.stringify({ northstar: true, kernel: 'assembler' }, null, 2))}</pre></div>`;
+    <div class="contract"><strong>Agent owner</strong><pre>${escapeHtml(JSON.stringify({ template: 'Dispatch & Assembly Agent', kernel: 'dispatch-assembly' }, null, 2))}</pre></div>`;
 }
 
 function serializeRun(run) {
@@ -949,6 +977,7 @@ function serializeRun(run) {
     prompt: run.prompt,
     status: run.status,
     strategy: run.plan.strategy,
+    factory: run.plan.factory,
     refreshMs,
     createdAt: run.createdAt,
     updatedAt: run.updatedAt,
@@ -964,6 +993,8 @@ function serializeRun(run) {
         id: worker.id,
         title: worker.title,
         role: worker.role,
+        template: worker.template,
+        assignment: worker.assignment,
         prompt: worker.prompt,
         contract: worker.contract,
       })),
@@ -971,6 +1002,8 @@ function serializeRun(run) {
         id: run.plan.assembler.id,
         title: run.plan.assembler.title,
         role: run.plan.assembler.role,
+        template: run.plan.assembler.template,
+        assignment: run.plan.assembler.assignment,
         prompt: run.plan.assembler.prompt,
         contract: run.plan.assembler.contract,
       },
@@ -979,6 +1012,8 @@ function serializeRun(run) {
       id: worker.id,
       title: worker.title,
       role: worker.role,
+      template: worker.template,
+      assignment: worker.assignment,
       prompt: worker.prompt,
       contract: worker.contract,
       status: worker.status,

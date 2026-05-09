@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Parallel CAD Kernel Monitor</title>
+    <title>CAD Agent Factory</title>
     <link rel="stylesheet" href="/parallel-cad.css">
   </head>
   <body>
@@ -12,8 +12,8 @@
         <div class="brand-row">
           <div class="mark">CAD</div>
           <div>
-            <h1>Parallel CAD Kernel Monitor</h1>
-            <p>Type one modeling task, split it into agent prompts, then watch every Kernel computer update from screenshots.</p>
+            <h1>CAD Agent Factory</h1>
+            <p>One Dispatch & Assembly Agent copies the same CAD Agent template, sends each instance a different prompt, then watches the factory work.</p>
           </div>
         </div>
 
@@ -21,7 +21,7 @@
         <textarea id="prompt" spellcheck="false">Make a cute desktop robot with a purple head, green body, orange arms, blue wheel feet, and a small chest screen.</textarea>
 
         <div class="button-row">
-          <button id="runButton" class="primary-button" type="button">Start Kernels</button>
+          <button id="runButton" class="primary-button" type="button">Run Factory</button>
           <button id="stopButton" class="secondary-button" type="button" disabled>Stop</button>
           <button id="resetButton" class="secondary-button" type="button">Reset</button>
         </div>
@@ -32,7 +32,7 @@
             <dd id="runId">none</dd>
           </div>
           <div>
-            <dt>Kernels</dt>
+            <dt>CAD Agents</dt>
             <dd id="kernelCount">0</dd>
           </div>
           <div>
@@ -44,15 +44,15 @@
 
       <section class="planner-panel" aria-label="Planner output">
         <div class="section-heading">
-          <h2>Planner Output</h2>
+          <h2>Dispatch & Assembly Agent</h2>
           <span id="plannerStatus" class="status idle">idle</span>
         </div>
         <ol id="planList" class="plan-list"></ol>
       </section>
 
-      <section class="monitor-panel" aria-label="Kernel monitor">
+      <section class="monitor-panel" aria-label="CAD agent monitor">
         <div class="section-heading">
-          <h2>Kernel Monitor</h2>
+          <h2>CAD Agent Instances</h2>
           <span id="monitorStatus" class="status idle">idle</span>
         </div>
         <div id="monitorGrid" class="monitor-grid" aria-live="polite"></div>
@@ -60,7 +60,7 @@
 
       <section class="manifest-panel" aria-label="Run manifest">
         <div class="section-heading">
-          <h2>Run Manifest</h2>
+          <h2>Factory Manifest</h2>
           <span id="manifestStatus" class="status idle">idle</span>
         </div>
         <pre id="manifest">{}</pre>

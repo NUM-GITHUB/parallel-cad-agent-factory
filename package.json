@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Hackathon MVP: parallel Kernel computer-use agents split and assemble CAD modeling tasks.",
+  "description": "Hackathon MVP: one CAD Agent template copied across parallel Kernel computers by a dispatch and assembly agent.",
   "scripts": {
     "serve": "node scripts/monitor-server.mjs",
     "serve:static": "python3 -m http.server 8780 --bind 127.0.0.1 --directory public",
