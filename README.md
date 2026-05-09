@@ -61,6 +61,10 @@ Final assembly result:
 
 ![Final assembled poster robot](docs/assets/poster-robot-demo/dispatch-assembly.png)
 
+Demo recording:
+
+[docs/assets/poster-robot-demo/demo-recording.mov](docs/assets/poster-robot-demo/demo-recording.mov)
+
 This run created **11 copied CAD Agent instances** from the same CAD Agent template. The Assembly Agent imported **11 part manifests** containing **17 source primitive placements**.
 
 | CAD Agent instance | Part prompt | Output manifest | Screenshot |
