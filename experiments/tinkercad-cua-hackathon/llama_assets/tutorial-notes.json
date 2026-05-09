@@ -1,0 +1,21 @@
+{
+  "sourceVideo": "https://www.youtube.com/watch?v=eDXcDN2tYOE&list=PLKOHL5rWQofF8pjNuyqSFCseO0WWG9Pez",
+  "sourceTitle": "How to Make the FortNite Llama in Tinkercad PART 1 of 3",
+  "relatedParts": [
+    "How To Make The Fortnite Llama in Tinkercad PART 2 of 3",
+    "How To Make The Fortnite Llama in Tinkercad PART 3 of 3"
+  ],
+  "modeledFrom": [
+    "Part 1 body dimensions: 42 x 97 x 35, raised body, purple color.",
+    "Part 1 tapered neck/head method: repeated pyramids/frustums and triangular prism jaw pieces.",
+    "Part 1/2 ears, eyes, mouth, teeth, and lower jaw.",
+    "Part 2 legs, saddle/lid, and lock.",
+    "Part 3 repeated feather/fringe details around the body and neck."
+  ],
+  "generatedFiles": {
+    "obj": "llama_assets/fortnite_llama.obj",
+    "mtl": "llama_assets/fortnite_llama.mtl",
+    "stl": "llama_assets/fortnite_llama.stl"
+  },
+  "meshCount": 74
+}

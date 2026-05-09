@@ -111,6 +111,10 @@ The CAD Agent is the first specialist vertical. The same platform idea could lat
 - Fresh project option so every new run starts from a clean workspace
 - Scripted baseline demos for recordings and fallback
 
+## Related Tinkercad Experiment
+
+The repo also includes an earlier Tinkercad-focused computer-use prototype in [`experiments/tinkercad-cua-hackathon/`](experiments/tinkercad-cua-hackathon/). That experiment explores the same pain point from a different angle: helping people move from plain-language 3D ideas and tutorial references into concrete CAD assets without manually replaying every browser step.
+
 ## Current Limitations
 
 This is intentionally a hackathon MVP:

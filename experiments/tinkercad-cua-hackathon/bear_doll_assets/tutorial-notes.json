@@ -1,0 +1,196 @@
+{
+  "sourceVideo": "https://www.youtube.com/watch?v=fs2h1acNG38",
+  "sourceTitle": "[1DAY_1CAD] BEAR DOLL (Tinkercad : Know-how / Style / Education)",
+  "sourceAuthor": "1DAY_1CAD : Tinkercad 3D Design",
+  "buildPlan": [
+    {
+      "stage": "1",
+      "part": "Body",
+      "primitive": "sphere/ellipsoid",
+      "solidHole": "solid",
+      "dimensions": "46 x 36 x 54 mm",
+      "position": "0, 0, 31",
+      "rotation": "0,0,0",
+      "notes": "Large seated plush body"
+    },
+    {
+      "stage": "2",
+      "part": "Head",
+      "primitive": "sphere/ellipsoid",
+      "solidHole": "solid",
+      "dimensions": "42 x 39 x 42 mm",
+      "position": "0, -6, 66",
+      "rotation": "0,0,0",
+      "notes": "Round head sitting into body"
+    },
+    {
+      "stage": "3",
+      "part": "Muzzle",
+      "primitive": "flattened sphere",
+      "solidHole": "solid",
+      "dimensions": "21 x 8 x 14 mm",
+      "position": "0, -25, 62",
+      "rotation": "0,0,0",
+      "notes": "Pale protruding mouth area"
+    },
+    {
+      "stage": "4",
+      "part": "Ears",
+      "primitive": "sphere/ellipsoid pair",
+      "solidHole": "solid",
+      "dimensions": "15 x 9 x 15 mm",
+      "position": "+/-17, -6, 84",
+      "rotation": "0,0,+/-10",
+      "notes": "Mirrored rounded ears"
+    },
+    {
+      "stage": "5",
+      "part": "Eyes and nose",
+      "primitive": "small ellipsoids",
+      "solidHole": "solid",
+      "dimensions": "3-7 mm landmarks",
+      "position": "front face",
+      "rotation": "0,0,0",
+      "notes": "Black mirrored landmarks"
+    },
+    {
+      "stage": "6",
+      "part": "Arms",
+      "primitive": "rotated ellipsoid pair",
+      "solidHole": "solid",
+      "dimensions": "13 x 16 x 36 mm",
+      "position": "+/-27, -2, 37",
+      "rotation": "0,0,+/-18",
+      "notes": "Drooping plush arms"
+    },
+    {
+      "stage": "7",
+      "part": "Feet and pads",
+      "primitive": "ellipsoid pairs",
+      "solidHole": "solid",
+      "dimensions": "16 x 29 x 12 mm",
+      "position": "+/-13, -18, 12",
+      "rotation": "0,0,+/-8",
+      "notes": "Seated forward feet"
+    },
+    {
+      "stage": "8",
+      "part": "Title",
+      "primitive": "extruded block text",
+      "solidHole": "solid",
+      "dimensions": "flat 2.5 mm letters",
+      "position": "-84, 20, 0",
+      "rotation": "0,0,0",
+      "notes": "BEAR DOLL workplane label"
+    }
+  ],
+  "modeledFrom": [
+    "00:00 Reference silhouette: The finished model is a seated teddy-bear doll with a round head, oval body, protruding muzzle, side ears, small black eyes, arms, feet, and BEAR DOLL text.",
+    "01:00 Head and body: Block the main silhouette with large rounded spheres before adding details.",
+    "02:00 Muzzle and face base: Add a shallow oval muzzle on the front of the head, then keep later eye and nose landmarks aligned to it.",
+    "04:30 Eyes, nose, ears: Mirror small black eyes and a nose across the centerline; add round side ears with lighter inner pads.",
+    "06:00 Body assembly: Place the body under the head with a pale oval belly patch, preserving the plush doll proportions.",
+    "08:30 Arms: Use mirrored tapered oval arms that hang down the sides of the body.",
+    "10:00 Legs and feet: Use forward-facing oval feet and small sole pads so the doll reads as seated.",
+    "12:00 Final title: Add BEAR DOLL text as flat yellow geometry on the workplane next to the doll."
+  ],
+  "generatedFiles": {
+    "obj": "bear_doll_assets/bear_doll.obj",
+    "mtl": "bear_doll_assets/bear_doll.mtl",
+    "stlAll": "bear_doll_assets/bear_doll_all.stl",
+    "stlBody": "bear_doll_assets/bear_doll_body.stl",
+    "stlCream": "bear_doll_assets/bear_doll_cream.stl",
+    "stlBlack": "bear_doll_assets/bear_doll_black.stl",
+    "stlText": "bear_doll_assets/bear_doll_text.stl",
+    "preview": "bear_doll_assets/bear_doll_preview.svg",
+    "report": "bear_doll_assets/report.html"
+  },
+  "meshCount": 138,
+  "boundsMillimeters": {
+    "all": {
+      "min": [
+        "-89.775",
+        "-32.96892",
+        "0"
+      ],
+      "max": [
+        "31.9385",
+        "23.775",
+        "92.74059"
+      ],
+      "size": [
+        "121.7135",
+        "56.74392",
+        "92.74059"
+      ]
+    },
+    "body": {
+      "min": [
+        "-31.9385",
+        "-30.18216",
+        "4"
+      ],
+      "max": [
+        "31.9385",
+        "19",
+        "92.74059"
+      ],
+      "size": [
+        "63.877",
+        "49.18216",
+        "88.74059"
+      ]
+    },
+    "cream": {
+      "min": [
+        "-22.39992",
+        "-32.96892",
+        "9.89802"
+      ],
+      "max": [
+        "22.39992",
+        "-7.68938",
+        "89.42296"
+      ],
+      "size": [
+        "44.79984",
+        "25.27953",
+        "79.52494"
+      ]
+    },
+    "black": {
+      "min": [
+        "-10.19201",
+        "-27.94801",
+        "26.2"
+      ],
+      "max": [
+        "10.19201",
+        "-20.15",
+        "73.57221"
+      ],
+      "size": [
+        "20.38402",
+        "7.79801",
+        "47.37221"
+      ]
+    },
+    "text": {
+      "min": [
+        "-89.775",
+        "-31.975",
+        "0"
+      ],
+      "max": [
+        "-26.025",
+        "23.775",
+        "2.5"
+      ],
+      "size": [
+        "63.75",
+        "55.75",
+        "2.5"
+      ]
+    }
+  }
+}

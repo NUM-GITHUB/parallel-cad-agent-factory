@@ -1,0 +1,39 @@
+{
+  "sourceVideo": "https://www.youtube.com/watch?v=B88Jxg5LQac",
+  "sourceTitle": "Tinkercad Tutorial - How To Make A Small 3D Cat",
+  "sourceAuthor": "Circuits With Angel",
+  "modeledFrom": [
+    "00:28 Body: Add a sphere, scale it to 35 mm wide, 42 mm long, and 20 mm tall.",
+    "00:41 Eyes: Add a 4 mm eye, raise it 10 mm, move it to the front, then copy, paste, and mirror it.",
+    "00:58 Front legs: Use a paraboloid, rotate it 112.5 degrees, scale it to 8 mm wide, 18.95 mm long, and 7.95 mm tall, then mirror the pair.",
+    "01:33 Back legs: Use another paraboloid, rotate it 135 degrees, scale it to 10.02 mm wide, 17.77 mm long, and 12 mm tall, angle it 22.5 degrees, then mirror it.",
+    "02:14 Ears: Use paraboloids scaled to 7 mm wide, 10 mm long, and 8 mm tall, then rotate and mirror them above the eyes.",
+    "02:38 Tail: Use a donut slice, rotate it 90 degrees and 22.5 degrees, then place it at the back of the body.",
+    "02:59 Nose: Use a roof shape scaled to 1 mm wide, 5 mm long, and 1 mm tall, rotate it 90 degrees, and place it between the eyes."
+  ],
+  "generatedFiles": {
+    "obj": "cat_assets/small_3d_cat.obj",
+    "mtl": "cat_assets/small_3d_cat.mtl",
+    "stl": "cat_assets/small_3d_cat.stl",
+    "preview": "cat_assets/small_3d_cat_preview.svg",
+    "report": "cat_assets/report.html"
+  },
+  "meshCount": 15,
+  "boundsMillimeters": {
+    "min": [
+      "-17.5",
+      "-26.97284",
+      "0.22566"
+    ],
+    "max": [
+      "17.5",
+      "22.59787",
+      "30.12462"
+    ],
+    "size": [
+      "35",
+      "49.5707",
+      "29.89897"
+    ]
+  }
+}
