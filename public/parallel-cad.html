@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Parallel CAD Agent Factory</title>
+    <link rel="stylesheet" href="/parallel-cad.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="control-panel" aria-label="Prompt and run controls">
+        <div class="brand-row">
+          <div class="mark">CAD</div>
+          <div>
+            <h1>Parallel CAD Agent Factory</h1>
+            <p>Split one 3D request into parallel computer-use builders, then assemble the result.</p>
+          </div>
+        </div>
+
+        <label class="prompt-label" for="prompt">User prompt</label>
+        <textarea id="prompt" spellcheck="false">Make a cute desktop robot with a purple head, green body, orange arms, blue wheel feet, and a small chest screen.</textarea>
+
+        <div class="button-row">
+          <button id="runButton" class="primary-button" type="button">Run parallel build</button>
+          <button id="resetButton" class="secondary-button" type="button">Reset</button>
+        </div>
+
+        <dl class="metrics">
+          <div>
+            <dt>Mode</dt>
+            <dd>4 Kernel workers + assembler</dd>
+          </div>
+          <div>
+            <dt>Target</dt>
+            <dd>Computer-use CAD workflow</dd>
+          </div>
+          <div>
+            <dt>Speedup</dt>
+            <dd id="speedup">waiting</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="planner-panel" aria-label="Planner output">
+        <div class="section-heading">
+          <h2>Planner</h2>
+          <span id="plannerStatus" class="status idle">idle</span>
+        </div>
+        <ol id="planList" class="plan-list"></ol>
+      </section>
+
+      <section class="workers-panel" aria-label="Parallel workers">
+        <div class="section-heading">
+          <h2>Parallel workers</h2>
+          <span id="workerStatus" class="status idle">idle</span>
+        </div>
+        <div id="workerGrid" class="worker-grid"></div>
+      </section>
+
+      <section class="assembly-panel" aria-label="Assembly preview">
+        <div class="section-heading">
+          <h2>Assembler</h2>
+          <span id="assemblyStatus" class="status idle">idle</span>
+        </div>
+        <div class="workbench">
+          <div class="grid-floor" aria-hidden="true"></div>
+          <div id="robot" class="robot" aria-label="Assembled robot preview">
+            <div class="robot-part antenna"></div>
+            <div class="robot-part head"></div>
+            <div class="robot-part eye left"></div>
+            <div class="robot-part eye right"></div>
+            <div class="robot-part body"></div>
+            <div class="robot-part screen"></div>
+            <div class="robot-part arm left-arm"></div>
+            <div class="robot-part arm right-arm"></div>
+            <div class="robot-part foot left-foot"></div>
+            <div class="robot-part foot right-foot"></div>
+          </div>
+        </div>
+        <div class="manifest">
+          <h3>Part manifest</h3>
+          <pre id="manifest">{}</pre>
+        </div>
+      </section>
+    </main>
+    <script src="/parallel-cad.js"></script>
+  </body>
+</html>

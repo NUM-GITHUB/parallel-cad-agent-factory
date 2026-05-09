@@ -1,0 +1,17 @@
+{
+  "name": "parallel-cad-agent-factory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hackathon MVP: parallel Kernel computer-use agents split and assemble CAD modeling tasks.",
+  "scripts": {
+    "serve": "python3 -m http.server 8780 --bind 127.0.0.1 --directory public",
+    "serve:latest": "python3 -m http.server 8781 --bind 127.0.0.1 --directory demo-results/latest",
+    "demo": "node scripts/parallel-cad-kernel-demo.mjs",
+    "check": "node --check public/parallel-cad.js && node --check scripts/parallel-cad-kernel-demo.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
+

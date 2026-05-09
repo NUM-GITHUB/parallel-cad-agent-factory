@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Parallel CAD Kernel Demo</title>
+  <style>
+    :root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #182330; background: #f3f6f8; }
+    body { margin: 0; }
+    main { max-width: 1220px; margin: 0 auto; padding: 34px 22px 60px; }
+    h1 { margin: 0 0 8px; font-size: 34px; }
+    .lede { color: #526373; max-width: 860px; line-height: 1.55; margin: 0 0 22px; }
+    .links { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 22px; }
+    a.button { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 7px; background: #1664c0; color: white; text-decoration: none; font-weight: 800; }
+    .assembler { background: #fff; border: 1px solid #d8e1ea; border-radius: 8px; padding: 16px; box-shadow: 0 10px 26px rgba(22,35,49,.08); margin-bottom: 18px; }
+    .assembler img { width: 100%; border: 1px solid #d8e1ea; border-radius: 8px; background: #eef9fc; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; }
+    article.worker { background: #fff; border: 1px solid #d8e1ea; border-radius: 8px; padding: 16px; box-shadow: 0 10px 26px rgba(22,35,49,.08); }
+    article h2 { margin: 0 0 8px; font-size: 20px; }
+    article p { color: #526373; line-height: 1.5; }
+    .shots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    figure { margin: 0; }
+    figure img { width: 100%; border: 1px solid #d8e1ea; border-radius: 7px; background: #eef9fc; }
+    figcaption { margin-top: 5px; color: #526373; font-size: 12px; line-height: 1.35; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Parallel CAD Kernel Demo</h1>
+    <p class="lede">Prompt: Make a cute desktop robot with a purple head, green body, orange arms, blue wheel feet, and a small chest screen.. This run launched four Kernel workers in parallel. Each worker opened a CAD-like workspace and used OS-level computer actions to drag visible primitives onto its workplane. A fifth Kernel opened the assembler view.</p>
+    <div class="links">
+      <a class="button" href="https://proxy.yul-compassionate-mclean.onkernel.com:8443/browser/live/yEBlmq4AuuFR">Open assembler live view</a>
+    </div>
+    <section class="assembler">
+      <h2>Assembler output</h2>
+      <img src="screenshots/assembler-final.png" alt="Assembler robot output">
+    </section>
+    <section class="grid"><article class="worker">
+        <h2>Head worker</h2>
+        <p>Build the robot head, face, and antenna pieces.</p>
+        <p><a href="https://proxy.iad-nervous-jackson.onkernel.com:8443/browser/live/r5ENF5V2yYsi">Kernel live view</a> · <a href="https://proxy.iad-nervous-jackson.onkernel.com:8443/browser/replays?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MDk4OTA2ODMsInNlc3Npb24iOnsiaWQiOiJ6dWtuc2R1djlueGs1NGt5d3NreWY1bTciLCJjZHBQb3J0Ijo5MjIyLCJjZHBXc1BhdGgiOiIiLCJpbnN0YW5jZU5hbWUiOiJicm93c2VyLWVudm95LXByb2R1Y3Rpb24tMTMtZGVzdGluZWQtc3dpZnQtODM2IiwiZnFkbiI6InJlc3RsZXNzLW1vb24tNnYxN2tpZG0ucHJvZC1pYWQtdW5pa3JhZnQtMy5vbmtlcm5lbC5hcHAiLCJtZXRybyI6Imh0dHBzOi8vYXBpLnByb2QtaWFkLXVuaWtyYWZ0LTMub25rZXJuZWwucnVuL3YxIiwidXNlcklkIjoidjBiY2l1MmU0YjZ1bnRiemk4ZXhibHhhIiwib3JnSWQiOiJ0bHVvZmxpaW5ncnluenV2dHgzcmp3dnUiLCJwcm9qZWN0SWQiOiJxNzJlNXRjYmMzc2FraW45eXYyMzlpZWsiLCJzdGVhbHRoIjpmYWxzZSwiaGVhZGxlc3MiOmZhbHNlLCJyZXBsYXlQcmVmaXgiOiJzMzovL2tlcm5lbC1hcGktcHJvZC9zZXNzaW9ucmVwbGF5cy90bHVvZmxpaW5ncnluenV2dHgzcmp3dnUvenVrbnNkdXY5bnhrNTRreXdza3lmNW03Iiwia2VybmVsSHR0cFNlcnZlclBvcnQiOjQ0NCwidGltZW91dFNlY29uZHMiOjYwMCwiY3JlYXRlZEF0IjoiMjAyNi0wNS0wOVQxOToyNDo0My4zNjQzOTcxODdaIiwiaW1hZ2UiOiJvbmtlcm5lbC9rZXJuZWwtY3UtdjQyOmNkY2VhNmIiLCJsaXZlU2x1ZyI6InI1RU5GNVYyeVlzaSIsInByaXZhdGVJUCI6IjE3Mi4xNi43LjIwMSIsInZpZXdwb3J0V2lkdGgiOjEyODAsInZpZXdwb3J0SGVpZ2h0Ijo4MDAsInZpZXdwb3J0UmVmcmVzaFJhdGUiOjYwfX0.d6KLuvccIzQGwJYkFBAa6Xp_qqvFkeHIWfELhlo0c5g&amp;replay_id=dqzqn93b6v72bt5renzgeild">replay</a></p>
+        <div class="shots"><figure><img src="screenshots/head/step-00-ready.png" alt="Worker workspace ready"><figcaption>Worker workspace ready</figcaption></figure><figure><img src="screenshots/head/step-01-box.png" alt="place purple head block"><figcaption>place purple head block</figcaption></figure><figure><img src="screenshots/head/step-02-sphere.png" alt="place left eye"><figcaption>place left eye</figcaption></figure><figure><img src="screenshots/head/step-03-sphere.png" alt="place right eye"><figcaption>place right eye</figcaption></figure><figure><img src="screenshots/head/step-04-cylinder.png" alt="place antenna post"><figcaption>place antenna post</figcaption></figure></div>
+      </article><article class="worker">
+        <h2>Body worker</h2>
+        <p>Build the robot torso and chest screen.</p>
+        <p><a href="https://proxy.jfk-focused-mirzakhani.onkernel.com:8443/browser/live/t1vX5jCPTHts">Kernel live view</a> · <a href="https://proxy.jfk-focused-mirzakhani.onkernel.com:8443/browser/replays?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MDk4OTA2ODMsInNlc3Npb24iOnsiaWQiOiJrdXYxa3Vza3h4eTgydHduenZuaXM1ZWEiLCJjZHBQb3J0Ijo5MjIyLCJjZHBXc1BhdGgiOiIiLCJpbnN0YW5jZU5hbWUiOiJicm93c2VyLWVudm95LXByb2R1Y3Rpb24tMTMtZmx5aW5nLWxpZ2h0c3BlZWQtMTA3NCIsImZxZG4iOiJmcmFncmFudC13b29kLTJtZ3MyZGhkLnByb2QtamZrLXVuaWtyYWZ0LTAub25rZXJuZWwuYXBwIiwibWV0cm8iOiJodHRwczovL2FwaS5wcm9kLWpmay11bmlrcmFmdC0wLm9ua2VybmVsLnJ1bi92MSIsInVzZXJJZCI6InYwYmNpdTJlNGI2dW50YnppOGV4Ymx4YSIsIm9yZ0lkIjoidGx1b2ZsaWluZ3J5bnp1dnR4M3Jqd3Z1IiwicHJvamVjdElkIjoicTcyZTV0Y2JjM3Nha2luOXl2MjM5aWVrIiwic3RlYWx0aCI6ZmFsc2UsImhlYWRsZXNzIjpmYWxzZSwicmVwbGF5UHJlZml4IjoiczM6Ly9rZXJuZWwtYXBpLXByb2Qvc2Vzc2lvbnJlcGxheXMvdGx1b2ZsaWluZ3J5bnp1dnR4M3Jqd3Z1L2t1djFrdXNreHh5ODJ0d256dm5pczVlYSIsImtlcm5lbEh0dHBTZXJ2ZXJQb3J0Ijo0NDQsInRpbWVvdXRTZWNvbmRzIjo2MDAsImNyZWF0ZWRBdCI6IjIwMjYtMDUtMDlUMTk6MjQ6NDMuMjgwMjcxNDI4WiIsImltYWdlIjoib25rZXJuZWwva2VybmVsLWN1LXY0MjpjZGNlYTZiIiwibGl2ZVNsdWciOiJ0MXZYNWpDUFRIdHMiLCJwcml2YXRlSVAiOiIxNzIuMTYuOC4yOSIsInZpZXdwb3J0V2lkdGgiOjEyODAsInZpZXdwb3J0SGVpZ2h0Ijo4MDAsInZpZXdwb3J0UmVmcmVzaFJhdGUiOjYwfX0.izwR3T4_fzeHc9Lr5lTfzoWShqL-udpKY0_0kZMczns&amp;replay_id=lm7eqa8c123q855hqht4yyh9">replay</a></p>
+        <div class="shots"><figure><img src="screenshots/body/step-00-ready.png" alt="Worker workspace ready"><figcaption>Worker workspace ready</figcaption></figure><figure><img src="screenshots/body/step-01-box.png" alt="place green torso"><figcaption>place green torso</figcaption></figure><figure><img src="screenshots/body/step-02-box.png" alt="place raised screen panel"><figcaption>place raised screen panel</figcaption></figure><figure><img src="screenshots/body/step-03-sphere.png" alt="place round status button"><figcaption>place round status button</figcaption></figure></div>
+      </article><article class="worker">
+        <h2>Arm worker</h2>
+        <p>Build mirrored robot arms with hand caps.</p>
+        <p><a href="https://proxy.iad-suspicious-banzai.onkernel.com:8443/browser/live/OBCgZqY3Ncr4">Kernel live view</a> · <a href="https://proxy.iad-suspicious-banzai.onkernel.com:8443/browser/replays?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MDk4OTA2ODMsInNlc3Npb24iOnsiaWQiOiJrYjhhY2RkcmFpcGRtMW9wZWZpYWpzbzYiLCJjZHBQb3J0Ijo5MjIyLCJjZHBXc1BhdGgiOiIiLCJpbnN0YW5jZU5hbWUiOiJicm93c2VyLWVudm95LXByb2R1Y3Rpb24tMTMtcGlja2VkLWNoYW1lbGVvbi00NzEiLCJmcWRuIjoic25vd3ktZ3Jhc3MtbjB0YTdwdXcucHJvZC1pYWQtdW5pa3JhZnQtMi5vbmtlcm5lbC5hcHAiLCJtZXRybyI6Imh0dHBzOi8vYXBpLnByb2QtaWFkLXVuaWtyYWZ0LTIub25rZXJuZWwucnVuL3YxIiwidXNlcklkIjoidjBiY2l1MmU0YjZ1bnRiemk4ZXhibHhhIiwib3JnSWQiOiJ0bHVvZmxpaW5ncnluenV2dHgzcmp3dnUiLCJwcm9qZWN0SWQiOiJxNzJlNXRjYmMzc2FraW45eXYyMzlpZWsiLCJzdGVhbHRoIjpmYWxzZSwiaGVhZGxlc3MiOmZhbHNlLCJyZXBsYXlQcmVmaXgiOiJzMzovL2tlcm5lbC1hcGktcHJvZC9zZXNzaW9ucmVwbGF5cy90bHVvZmxpaW5ncnluenV2dHgzcmp3dnUva2I4YWNkZHJhaXBkbTFvcGVmaWFqc282Iiwia2VybmVsSHR0cFNlcnZlclBvcnQiOjQ0NCwidGltZW91dFNlY29uZHMiOjYwMCwiY3JlYXRlZEF0IjoiMjAyNi0wNS0wOVQxOToyNDo0My4zNzEzNTIxNTdaIiwiaW1hZ2UiOiJvbmtlcm5lbC9rZXJuZWwtY3UtdjQyOmNkY2VhNmIiLCJsaXZlU2x1ZyI6Ik9CQ2dacVkzTmNyNCIsInByaXZhdGVJUCI6IjE3Mi4xNi4wLjExNyIsInZpZXdwb3J0V2lkdGgiOjEyODAsInZpZXdwb3J0SGVpZ2h0Ijo4MDAsInZpZXdwb3J0UmVmcmVzaFJhdGUiOjYwfX0.ldOVhBthok9Shla_vsZcN7agiQcyPRFGU3-Ew4Dfs6c&amp;replay_id=hy3yo3mog6b3lzxlglknlczg">replay</a></p>
+        <div class="shots"><figure><img src="screenshots/arms/step-00-ready.png" alt="Worker workspace ready"><figcaption>Worker workspace ready</figcaption></figure><figure><img src="screenshots/arms/step-01-cylinder.png" alt="place left arm cylinder"><figcaption>place left arm cylinder</figcaption></figure><figure><img src="screenshots/arms/step-02-cylinder.png" alt="place right arm cylinder"><figcaption>place right arm cylinder</figcaption></figure><figure><img src="screenshots/arms/step-03-sphere.png" alt="place left hand cap"><figcaption>place left hand cap</figcaption></figure><figure><img src="screenshots/arms/step-04-sphere.png" alt="place right hand cap"><figcaption>place right hand cap</figcaption></figure></div>
+      </article><article class="worker">
+        <h2>Feet worker</h2>
+        <p>Build blue wheel-like feet and lower anchors.</p>
+        <p><a href="https://proxy.yul-upbeat-herschel.onkernel.com:8443/browser/live/3YL7l4D9dZJ0">Kernel live view</a> · <a href="https://proxy.yul-upbeat-herschel.onkernel.com:8443/browser/replays?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MDk4OTA2ODMsInNlc3Npb24iOnsiaWQiOiJsaXhpcHFmdzdsdmFjdnNzN2xoN2swb2IiLCJjZHBQb3J0Ijo5MjIyLCJjZHBXc1BhdGgiOiIiLCJpbnN0YW5jZU5hbWUiOiJicm93c2VyLWVudm95LXByb2R1Y3Rpb24tMTMtYWxsb3dlZC1qaWdzYXctMjgwNyIsImZxZG4iOiJ5b3VuZy10cmVlLXloMjdsZmZiLnByb2QteXVsLXVuaWtyYWZ0LTAub25rZXJuZWwuYXBwIiwibWV0cm8iOiJodHRwczovL2FwaS5wcm9kLXl1bC11bmlrcmFmdC0wLm9ua2VybmVsLnJ1bi92MSIsInVzZXJJZCI6InYwYmNpdTJlNGI2dW50YnppOGV4Ymx4YSIsIm9yZ0lkIjoidGx1b2ZsaWluZ3J5bnp1dnR4M3Jqd3Z1IiwicHJvamVjdElkIjoicTcyZTV0Y2JjM3Nha2luOXl2MjM5aWVrIiwic3RlYWx0aCI6ZmFsc2UsImhlYWRsZXNzIjpmYWxzZSwicmVwbGF5UHJlZml4IjoiczM6Ly9rZXJuZWwtYXBpLXByb2Qvc2Vzc2lvbnJlcGxheXMvdGx1b2ZsaWluZ3J5bnp1dnR4M3Jqd3Z1L2xpeGlwcWZ3N2x2YWN2c3M3bGg3azBvYiIsImtlcm5lbEh0dHBTZXJ2ZXJQb3J0Ijo0NDQsInRpbWVvdXRTZWNvbmRzIjo2MDAsImNyZWF0ZWRBdCI6IjIwMjYtMDUtMDlUMTk6MjQ6NDMuMjc0NjQ5Mzg2WiIsImltYWdlIjoib25rZXJuZWwva2VybmVsLWN1LXY0MjpjZGNlYTZiIiwibGl2ZVNsdWciOiIzWUw3bDREOWRaSjAiLCJwcml2YXRlSVAiOiIxNzIuMTYuNS4xODEiLCJ2aWV3cG9ydFdpZHRoIjoxMjgwLCJ2aWV3cG9ydEhlaWdodCI6ODAwLCJ2aWV3cG9ydFJlZnJlc2hSYXRlIjo2MH19.0jlfSU-7PxA624__3_it7BC_aEkcZFIf-jt9nmTT3dg&amp;replay_id=olmnyxcau9267zuxpr2dv1vf">replay</a></p>
+        <div class="shots"><figure><img src="screenshots/feet/step-00-ready.png" alt="Worker workspace ready"><figcaption>Worker workspace ready</figcaption></figure><figure><img src="screenshots/feet/step-01-cylinder.png" alt="place left wheel foot"><figcaption>place left wheel foot</figcaption></figure><figure><img src="screenshots/feet/step-02-cylinder.png" alt="place right wheel foot"><figcaption>place right wheel foot</figcaption></figure><figure><img src="screenshots/feet/step-03-box.png" alt="place left leg strut"><figcaption>place left leg strut</figcaption></figure><figure><img src="screenshots/feet/step-04-box.png" alt="place right leg strut"><figcaption>place right leg strut</figcaption></figure></div>
+      </article></section>
+  </main>
+</body>
+</html>
