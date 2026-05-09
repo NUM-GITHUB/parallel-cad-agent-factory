@@ -73,6 +73,18 @@ async function stopRun() {
   }
 }
 
+async function resetRun() {
+  const runToStop = activeRunId;
+  if (runToStop) {
+    try {
+      await api(`/api/runs/${runToStop}/stop`, { method: "POST" });
+    } catch {
+      // The run may belong to a previous server process; resetting the local UI is still useful.
+    }
+  }
+  reset();
+}
+
 function startPoll(refreshMs) {
   clearPoll();
   const interval = Math.max(1500, Math.min(refreshMs || 3000, 5000));
@@ -102,7 +114,7 @@ function renderRun(run) {
   runIdEl.textContent = run.id;
   kernelCountEl.textContent = String(run.workers.length);
   refreshRateEl.textContent = `${Math.round(run.refreshMs / 1000)} sec screenshots`;
-  runButton.disabled = !["failed", "stopped"].includes(run.status);
+  runButton.disabled = !["failed", "stopped", "complete"].includes(run.status);
   stopButton.disabled = ["failed", "stopped"].includes(run.status);
 
   renderPlan(run);
@@ -117,9 +129,13 @@ function renderRun(run) {
     setStatus(plannerStatus, "done", "stopped");
     setStatus(monitorStatus, "done", "stopped");
     setStatus(manifestStatus, "done", "saved");
-  } else if (run.status === "monitoring") {
+  } else if (run.status === "complete") {
     setStatus(plannerStatus, "done", "planned");
-    setStatus(monitorStatus, "running", "monitoring");
+    setStatus(monitorStatus, "done", "complete");
+    setStatus(manifestStatus, "done", "saved");
+  } else if (["monitoring", "agents-running", "assembling"].includes(run.status)) {
+    setStatus(plannerStatus, "done", "planned");
+    setStatus(monitorStatus, "running", run.status === "assembling" ? "assembling" : "agents");
     setStatus(manifestStatus, "done", "live");
   } else {
     setStatus(plannerStatus, "running", "planning");
@@ -146,21 +162,30 @@ function renderMonitor(run) {
       const updated = worker.lastScreenshotAt ? new Date(worker.lastScreenshotAt).toLocaleTimeString() : "waiting";
       const liveLink = worker.liveViewUrl ? `<a href="${escapeAttr(worker.liveViewUrl)}" target="_blank" rel="noreferrer">live view</a>` : "";
       const session = worker.sessionId ? `<span>session: ${escapeHtml(worker.sessionId)}</span>` : "<span>session: creating</span>";
-      const error = worker.error ? `<span>error: ${escapeHtml(worker.error)}</span>` : "";
+      const error = worker.error || worker.agentError ? `<span>error: ${escapeHtml(worker.error || worker.agentError)}</span>` : "";
+      const lastAction = worker.lastAction ? `<div class="last-action">last action: ${escapeHtml(worker.lastAction)}</div>` : "";
+      const finalText = worker.finalText ? `<div class="final-text">${escapeHtml(worker.finalText)}</div>` : "";
       return `<article class="kernel-card">
         <div class="kernel-top">
           <div class="kernel-title">
             <h3>${escapeHtml(worker.title)}</h3>
             <p>${escapeHtml(worker.role)} · ${escapeHtml(worker.id)}</p>
           </div>
-          <span class="kernel-state ${escapeAttr(worker.status)}">${escapeHtml(worker.status)}</span>
+          <span class="kernel-state ${escapeAttr(worker.agentStatus || worker.status)}">${escapeHtml(worker.agentStatus || worker.status)}</span>
         </div>
         <div class="kernel-shot">
           <img src="${escapeAttr(worker.screenshotUrl)}" alt="${escapeAttr(worker.title)} screenshot">
+          <div class="shot-badge">shot #${escapeHtml(worker.screenshotVersion)}</div>
+          <div class="shot-sweep" aria-hidden="true"></div>
         </div>
         <div class="kernel-meta">
           <div class="kernel-prompt">${escapeHtml(worker.prompt)}</div>
-          <div>last screenshot: ${escapeHtml(updated)}</div>
+          <div class="refresh-line">
+            <span class="refresh-dot"></span>
+            <span>last screenshot: ${escapeHtml(updated)} · actions: ${escapeHtml(worker.actionCount || 0)} · step: ${escapeHtml(worker.agentStep || 0)}</span>
+          </div>
+          ${lastAction}
+          ${finalText}
           <div class="kernel-links">${liveLink}${session}${error}</div>
         </div>
       </article>`;
@@ -179,8 +204,14 @@ function renderManifest(run) {
         id: worker.id,
         role: worker.role,
         status: worker.status,
+        agentStatus: worker.agentStatus,
+        agentStep: worker.agentStep,
+        actionCount: worker.actionCount,
+        lastAction: worker.lastAction,
+        finalText: worker.finalText,
         sessionId: worker.sessionId,
         liveViewUrl: worker.liveViewUrl,
+        screenshotVersion: worker.screenshotVersion,
         prompt: worker.prompt,
         contract: worker.contract,
         lastScreenshotAt: worker.lastScreenshotAt,
@@ -224,6 +255,6 @@ function escapeAttr(value) {
 
 runButton.addEventListener("click", startRun);
 stopButton.addEventListener("click", stopRun);
-resetButton.addEventListener("click", reset);
+resetButton.addEventListener("click", resetRun);
 
 reset();

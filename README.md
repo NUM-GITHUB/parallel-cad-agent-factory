@@ -41,6 +41,7 @@ Requires:
 
 - Kernel CLI installed and authenticated
 - A Kernel account with browser access
+- `TZAFON_API_KEY` set in the environment or in `.env.local`
 
 ```bash
 npm run serve
@@ -59,8 +60,12 @@ When you submit a prompt, the local server:
 - decomposes the task into worker prompts
 - creates one Kernel browser per worker plus an assembler Kernel
 - opens a visible CAD workbench in each Kernel
+- starts one Northstar computer-use loop per worker Kernel
+- runs the part workers in parallel, then runs the assembler worker
 - captures screenshots every few seconds
-- streams each Kernel's latest screenshot and live view URL into the monitor dashboard
+- streams each Kernel's latest screenshot, live view URL, agent status, action count, and last action into the monitor dashboard
+
+Set `MONITOR_AGENT_MODE=off` to use the UI as a screenshot-only Kernel monitor without Northstar agent loops.
 
 ## Run The Baseline Multi-Kernel Demo
 
