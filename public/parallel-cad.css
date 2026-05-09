@@ -138,6 +138,23 @@ a:focus-visible {
   flex-wrap: wrap;
 }
 
+.fresh-toggle {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 8px;
+  margin: -4px 0 16px;
+  color: #344455;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.fresh-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--blue);
+}
+
 button {
   min-height: 40px;
   border: 1px solid transparent;

@@ -2,6 +2,7 @@ const promptInput = document.querySelector("#prompt");
 const runButton = document.querySelector("#runButton");
 const stopButton = document.querySelector("#stopButton");
 const resetButton = document.querySelector("#resetButton");
+const freshProjectInput = document.querySelector("#freshProject");
 const planList = document.querySelector("#planList");
 const monitorGrid = document.querySelector("#monitorGrid");
 const manifestEl = document.querySelector("#manifest");
@@ -43,15 +44,18 @@ async function startRun() {
   runButton.textContent = "Creating...";
   stopButton.disabled = true;
   setStatus(plannerStatus, "running", "planning");
-  setStatus(monitorStatus, "running", "creating");
+  setStatus(monitorStatus, "running", freshProjectInput.checked ? "clearing" : "creating");
   setStatus(manifestStatus, "running", "pending");
-  monitorGrid.innerHTML = `<div class="empty-state">Creating fresh CAD Agent instances on new Kernel computers...</div>`;
+  monitorGrid.innerHTML = `<div class="empty-state">${freshProjectInput.checked ? "Clearing the previous project, then creating" : "Creating"} CAD Agent instances on Kernel computers...</div>`;
 
   try {
     const run = await api("/api/runs", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ prompt: promptInput.value }),
+      body: JSON.stringify({
+        prompt: promptInput.value,
+        stopPrevious: freshProjectInput.checked,
+      }),
     }, 12000);
     activeRunId = run.id;
     renderRun(run);
@@ -213,6 +217,7 @@ function renderManifest(run) {
       status: run.status,
       strategy: run.strategy,
       factory: run.factory,
+      freshProject: run.freshProject,
       prompt: run.prompt,
       agentInstances: run.workers.map((worker) => ({
         id: worker.id,

@@ -92,10 +92,11 @@ async function route(request, response) {
 
   if (request.method === 'POST' && url.pathname === '/api/runs') {
     const body = await readJson(request);
-    if (body.stopPrevious === true) {
+    const freshProject = body.stopPrevious !== false;
+    if (freshProject) {
       await stopAllRuns();
     }
-    const run = createRun(body.prompt || '');
+    const run = createRun(body.prompt || '', { freshProject });
     runs.set(run.id, run);
     bootRun(run).catch((error) => failRun(run, error));
     sendJson(response, 202, serializeRun(run));
@@ -162,7 +163,7 @@ async function route(request, response) {
   sendJson(response, 404, { error: 'not found' });
 }
 
-function createRun(prompt) {
+function createRun(prompt, options = {}) {
   const id = `monitor-${timestamp()}`;
   const dir = path.join(runsRoot, id);
   const screenshotsDir = path.join(dir, 'screenshots');
@@ -195,6 +196,7 @@ function createRun(prompt) {
     dir,
     screenshotsDir,
     plan,
+    freshProject: options.freshProject !== false,
     workers,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -1001,6 +1003,7 @@ function serializeRun(run) {
     status: run.status,
     strategy: run.plan.strategy,
     factory: run.plan.factory,
+    freshProject: run.freshProject,
     refreshMs,
     createdAt: run.createdAt,
     updatedAt: run.updatedAt,
