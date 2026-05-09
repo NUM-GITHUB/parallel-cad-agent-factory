@@ -93,9 +93,6 @@ async function route(request, response) {
   if (request.method === 'POST' && url.pathname === '/api/runs') {
     const body = await readJson(request);
     const freshProject = body.stopPrevious !== false;
-    if (freshProject) {
-      await stopAllRuns();
-    }
     const run = createRun(body.prompt || '', { freshProject });
     runs.set(run.id, run);
     bootRun(run).catch((error) => failRun(run, error));
@@ -197,6 +194,7 @@ function createRun(prompt, options = {}) {
     screenshotsDir,
     plan,
     freshProject: options.freshProject !== false,
+    cleanup: options.cleanup || null,
     workers,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -209,6 +207,23 @@ function createRun(prompt, options = {}) {
 }
 
 async function bootRun(run) {
+  if (run.freshProject) {
+    run.status = 'clearing-projects';
+    touch(run);
+    await stopPreviousRuns(run);
+    run.cleanup = { status: 'background', scanned: 0, deleted: 0 };
+    clearFactoryBrowsers({ before: run.createdAt })
+      .then((cleanup) => {
+        run.cleanup = cleanup;
+        touch(run);
+      })
+      .catch((error) => {
+        run.cleanup = { status: 'failed', scanned: 0, deleted: 0, error: error.message };
+        touch(run);
+      });
+    touch(run);
+  }
+
   run.status = 'creating-kernels';
   touch(run);
 
@@ -251,7 +266,22 @@ async function bootWorker(run, worker) {
       'playwright',
       'execute',
       worker.sessionId,
-      `await page.setContent(${JSON.stringify(html)}, { waitUntil: "domcontentloaded" }); return await page.title();`,
+      `await page.goto("about:blank", { waitUntil: "domcontentloaded" });
+await page.evaluate(async () => {
+  localStorage.clear();
+  sessionStorage.clear();
+  if (globalThis.caches) {
+    for (const key of await caches.keys()) await caches.delete(key);
+  }
+  if (indexedDB.databases) {
+    for (const database of await indexedDB.databases()) {
+      if (database.name) indexedDB.deleteDatabase(database.name);
+    }
+  }
+  document.body.innerHTML = "";
+});
+await page.setContent(${JSON.stringify(html)}, { waitUntil: "domcontentloaded" });
+return await page.title();`,
     ]);
 
     worker.status = 'ready';
@@ -320,6 +350,53 @@ async function stopRun(run) {
 async function stopAllRuns() {
   const activeRuns = [...runs.values()].filter((run) => !['stopped', 'failed'].includes(run.status));
   await Promise.allSettled(activeRuns.map((run) => stopRun(run)));
+}
+
+async function stopPreviousRuns(currentRun) {
+  const activeRuns = [...runs.values()].filter(
+    (run) => run !== currentRun && !['stopped', 'failed'].includes(run.status),
+  );
+  await Promise.allSettled(activeRuns.map((run) => stopRun(run)));
+}
+
+async function clearFactoryBrowsers({ before } = {}) {
+  let browsers = [];
+  try {
+    browsers = JSON.parse(
+      stripAnsi(await kernelStdout(['browsers', 'list', '-o', 'json', '--no-color'], { timeoutMs: 5000 })),
+    );
+  } catch (error) {
+    return { status: 'failed', scanned: 0, deleted: 0, error: error.message };
+  }
+
+  const beforeTime = before ? Date.parse(before) : Number.POSITIVE_INFINITY;
+  let deleted = 0;
+  const candidates = browsers
+    .filter((browser) => browser.session_id)
+    .filter((browser) => !Number.isFinite(beforeTime) || Date.parse(browser.created_at) < beforeTime)
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+    .slice(0, 24);
+
+  for (const browser of candidates) {
+    try {
+      const title = extractCliResultString(
+        await kernelStdout([
+          'browsers',
+          'playwright',
+          'execute',
+          browser.session_id,
+          'return await page.title();',
+        ], { timeoutMs: 3000 }),
+      );
+      if (String(title).includes('CAD Agent Factory')) {
+        await kernelStdout(['browsers', 'delete', browser.session_id, '--no-color'], { timeoutMs: 5000 });
+        deleted += 1;
+      }
+    } catch {
+      // Ignore stale or unrelated sessions. Fresh runs only need best-effort cleanup.
+    }
+  }
+  return { status: 'complete', scanned: candidates.length, deleted };
 }
 
 function failRun(run, error) {
@@ -487,9 +564,10 @@ The CAD Agent instance contracts are:
 ${JSON.stringify(run.plan.workers.map((item) => item.contract), null, 2)}
 
 Use the visible MiniCAD UI directly:
-1. Click one tile in the Assembly Parts palette.
-2. Click the workplane where that robot part should go.
-3. Repeat for body, head, arms, feet, and details.
+1. Click Reset Project once before doing anything else, even if the project appears empty.
+2. Click one tile in the Assembly Parts palette.
+3. Click the workplane where that robot part should go.
+4. Repeat for body, head, arms, feet, and details.
 
 Do not ask the main agent for coordinates. Do not rely on hidden scripts. Use one computer action at a time. When the final robot is represented, answer with a short sentence containing the word "complete".`;
   }
@@ -500,9 +578,10 @@ You are one copied instance of the same CAD Agent template. The Dispatch & Assem
 You control the visible MiniCAD webpage in this Kernel browser.
 
 Use the visible UI directly:
-1. Click a primitive in the Basic Shapes palette.
-2. Click the workplane where the primitive should be placed.
-3. Repeat until your assigned part is represented.
+1. Click Reset Project once before doing anything else, even if the project appears empty.
+2. Click a primitive in the Basic Shapes palette.
+3. Click the workplane where the primitive should be placed.
+4. Repeat until your assigned part is represented.
 
 Do not ask the main agent for coordinates. Do not rely on hidden scripts. Use one computer action at a time. When your part is complete, answer with a short sentence containing the word "complete".`;
 }
@@ -611,9 +690,10 @@ async function createKernelBrowser() {
   return JSON.parse(stripAnsi(stdout));
 }
 
-async function kernelStdout(args) {
+async function kernelStdout(args, options = {}) {
   const { stdout } = await execFileAsync('kernel', args, {
     maxBuffer: 20 * 1024 * 1024,
+    timeout: options.timeoutMs || 0,
   });
   return stdout.trim();
 }
@@ -788,14 +868,8 @@ function kernelWorkbenchHtml(run, worker) {
     .grid { position: absolute; inset: 0; background: linear-gradient(#c9e8f4 1px, transparent 1px), linear-gradient(90deg, #c9e8f4 1px, transparent 1px); background-size: 24px 24px; transform: skewX(-14deg) scaleY(.84); transform-origin: center bottom; pointer-events: none; }
     .label { position: absolute; left: 28px; bottom: 20px; color: rgba(24, 91, 129, .28); font-size: 42px; font-weight: 900; font-style: italic; pointer-events: none; }
     .ghost { position: absolute; left: 50%; top: 44%; width: ${isAssembler ? '280px' : '180px'}; height: ${isAssembler ? '260px' : '160px'}; transform: translate(-50%, -50%); border: 3px dashed rgba(22,100,192,.26); border-radius: 12px; display: grid; place-items: center; color: rgba(22,100,192,.58); text-align: center; font-weight: 900; padding: 18px; }
-    .ghost, .model, .activity { pointer-events: none; }
+    .ghost, .activity { pointer-events: none; }
     .ghost::after { content: ""; position: absolute; inset: -3px; border-radius: inherit; border: 3px solid transparent; border-top-color: ${worker.color}; animation: orbit 2.4s linear infinite; }
-    .model { position: absolute; left: 50%; top: 47%; width: ${isAssembler ? '310px' : '210px'}; height: ${isAssembler ? '300px' : '190px'}; transform: translate(-50%, -50%); }
-    .part { position: absolute; opacity: .92; box-shadow: 0 18px 28px rgba(21, 38, 55, .16); animation: breathe 2.6s ease-in-out infinite; }
-    .part.core { left: 50%; top: 50%; width: ${isAssembler ? '96px' : '84px'}; height: ${isAssembler ? '88px' : '72px'}; margin-left: ${isAssembler ? '-48px' : '-42px'}; margin-top: ${isAssembler ? '-44px' : '-36px'}; border-radius: 12px; background: ${worker.color}; }
-    .part.one { left: ${isAssembler ? '72px' : '42px'}; top: ${isAssembler ? '96px' : '64px'}; width: 58px; height: 28px; border-radius: 999px; background: #ed7a22; animation-delay: .35s; }
-    .part.two { right: ${isAssembler ? '72px' : '42px'}; top: ${isAssembler ? '96px' : '64px'}; width: 58px; height: 28px; border-radius: 999px; background: #1664c0; animation-delay: .7s; }
-    .part.three { left: 50%; bottom: ${isAssembler ? '52px' : '28px'}; width: 68px; height: 34px; margin-left: -34px; border-radius: 50%; background: #38b6d8; animation-delay: 1s; }
     .activity { position: absolute; left: 28px; right: 28px; top: 24px; min-height: 64px; border: 1px solid rgba(22,100,192,.2); border-radius: 8px; background: rgba(255,255,255,.78); overflow: hidden; }
     .activity::before { content: ""; position: absolute; left: -28%; top: 0; width: 28%; height: 100%; background: linear-gradient(90deg, transparent, rgba(22,100,192,.24), transparent); animation: sweep 2.8s linear infinite; }
     .activity-row { position: relative; z-index: 1; display: flex; height: 64px; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; font-weight: 850; }
@@ -826,6 +900,7 @@ function kernelWorkbenchHtml(run, worker) {
     .placed.foot { width: 78px; height: 38px; border-radius: 50%; background: #1664c0; }
     .placed.detail { width: 66px; height: 34px; border-radius: 7px; background: #e7b32b; color: #182330; }
     .instructions { margin: 12px 0; padding: 10px; border: 1px solid #d8e1ea; border-radius: 8px; background: #f8fafc; color: #435466; line-height: 1.45; font-size: 13px; }
+    .reset-project { width: 100%; margin: 0 0 12px; min-height: 42px; border: 1px solid #cfdae5; border-radius: 8px; background: #edf3f8; color: #223244; font: inherit; font-weight: 900; cursor: pointer; }
     .log { margin-bottom: 12px; padding: 10px; border: 1px solid #d8e1ea; border-radius: 8px; background: #101820; color: #dff7ec; min-height: 76px; font-size: 12px; line-height: 1.4; white-space: pre-wrap; }
     .prompt, pre, .contract { border: 1px solid #d8e1ea; border-radius: 8px; background: #f8fafc; padding: 12px; line-height: 1.45; }
     .prompt { color: #344455; font-size: 14px; }
@@ -835,7 +910,6 @@ function kernelWorkbenchHtml(run, worker) {
     .heartbeat { display: inline-block; width: 10px; height: 10px; margin-right: 7px; border-radius: 50%; background: ${worker.color}; animation: pulse 1.4s infinite ease-in-out; }
     @keyframes pulse { 0%, 100% { opacity: .35; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.12); } }
     @keyframes orbit { to { transform: rotate(360deg); } }
-    @keyframes breathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.04); } }
     @keyframes sweep { to { left: 100%; } }
   </style>
 </head>
@@ -857,17 +931,12 @@ function kernelWorkbenchHtml(run, worker) {
           <span id="tick" class="tick">tick 0</span>
         </div>
       </div>
-      <div class="model" aria-hidden="true">
-        <div class="part core"></div>
-        <div class="part one"></div>
-        <div class="part two"></div>
-        <div class="part three"></div>
-      </div>
       <div class="ghost">${escapeHtml(isAssembler ? 'Assembly workplane waiting for worker outputs' : `${worker.id} workplane waiting for Northstar actions`)}</div>
       <div class="label">${escapeHtml(isAssembler ? 'Assembler' : worker.id)}</div>
     </section>
     <aside>
       ${palette}
+      <button id="resetProject" class="reset-project" type="button">Reset Project</button>
       <div class="instructions">${escapeHtml(isAssembler ? 'Click a robot part, then click the workplane to place it.' : 'Click a primitive, then click the workplane to place it.')}</div>
       <div id="log" class="log">${escapeHtml(emptyLog)}</div>
       <h2>Assigned prompt</h2>
@@ -884,6 +953,7 @@ function kernelWorkbenchHtml(run, worker) {
     let tick = 0;
     const workspace = document.querySelector("#workspace");
     const log = document.querySelector("#log");
+    const resetProject = document.querySelector("#resetProject");
     const buttons = [...document.querySelectorAll(".tool")];
     const defaultSelection = ${JSON.stringify(selectedDefault)};
     const emptyLog = ${JSON.stringify(emptyLog)};
@@ -897,6 +967,12 @@ function kernelWorkbenchHtml(run, worker) {
         setSelected(selected);
         writeLog("Selected " + selected + ". Click the workplane to place it.");
       });
+    });
+
+    resetProject.addEventListener("click", () => {
+      for (const placed of [...workspace.querySelectorAll(".placed")]) placed.remove();
+      window.demoManifest.parts = [];
+      log.textContent = "Project reset. Scene is empty.";
     });
 
     workspace.addEventListener("click", (event) => {
@@ -1004,6 +1080,7 @@ function serializeRun(run) {
     strategy: run.plan.strategy,
     factory: run.plan.factory,
     freshProject: run.freshProject,
+    cleanup: run.cleanup,
     refreshMs,
     createdAt: run.createdAt,
     updatedAt: run.updatedAt,

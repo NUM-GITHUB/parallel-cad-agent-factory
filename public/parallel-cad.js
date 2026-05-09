@@ -154,6 +154,10 @@ function renderRun(run) {
     setStatus(plannerStatus, "done", "planned");
     setStatus(monitorStatus, "running", run.status === "assembling" ? "assembling" : "agents");
     setStatus(manifestStatus, "done", "live");
+  } else if (run.status === "clearing-projects") {
+    setStatus(plannerStatus, "running", "clearing");
+    setStatus(monitorStatus, "running", "clearing");
+    setStatus(manifestStatus, "running", "pending");
   } else {
     setStatus(plannerStatus, "running", "planning");
     setStatus(monitorStatus, "running", "creating");
