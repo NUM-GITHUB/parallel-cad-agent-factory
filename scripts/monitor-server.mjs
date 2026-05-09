@@ -79,10 +79,19 @@ async function route(request, response) {
 
   if (request.method === 'POST' && url.pathname === '/api/runs') {
     const body = await readJson(request);
+    if (body.stopPrevious === true) {
+      await stopAllRuns();
+    }
     const run = createRun(body.prompt || '');
     runs.set(run.id, run);
     bootRun(run).catch((error) => failRun(run, error));
     sendJson(response, 202, serializeRun(run));
+    return;
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/runs/stop-all') {
+    await stopAllRuns();
+    sendJson(response, 200, { ok: true, stoppedRuns: [...runs.values()].filter((run) => run.status === 'stopped').length });
     return;
   }
 
@@ -266,6 +275,8 @@ async function captureWorkerNow(worker) {
 }
 
 async function stopRun(run) {
+  if (run.status === 'stopped') return;
+
   if (run.timer) {
     clearInterval(run.timer);
     run.timer = null;
@@ -279,6 +290,11 @@ async function stopRun(run) {
     if (worker.agentStatus !== 'failed') worker.agentStatus = 'stopped';
   }
   touch(run);
+}
+
+async function stopAllRuns() {
+  const activeRuns = [...runs.values()].filter((run) => !['stopped', 'failed'].includes(run.status));
+  await Promise.allSettled(activeRuns.map((run) => stopRun(run)));
 }
 
 function failRun(run, error) {
@@ -385,6 +401,11 @@ async function runNorthstarAgent(run, worker, maxSteps) {
         truncation: 'auto',
         max_output_tokens: 512,
       });
+
+      if (run.status === 'stopped') {
+        worker.agentStatus = 'stopped';
+        return;
+      }
 
       previousResponseId = response.id;
       const text = extractText(response);

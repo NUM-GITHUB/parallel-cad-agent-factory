@@ -59,6 +59,7 @@ When you submit a prompt, the local server:
 
 - decomposes the task into worker prompts
 - creates one Kernel browser per worker plus an assembler Kernel
+- switches the dashboard to the newest run without stopping older runs
 - opens a visible CAD workbench in each Kernel
 - starts one Northstar computer-use loop per worker Kernel
 - runs the part workers in parallel, then runs the assembler worker

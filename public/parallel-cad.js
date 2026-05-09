@@ -42,7 +42,7 @@ async function startRun() {
   setStatus(plannerStatus, "running", "planning");
   setStatus(monitorStatus, "running", "creating");
   setStatus(manifestStatus, "running", "pending");
-  monitorGrid.innerHTML = `<div class="empty-state">Creating Kernel sessions...</div>`;
+  monitorGrid.innerHTML = `<div class="empty-state">Creating a new Kernel set and switching the monitor...</div>`;
 
   try {
     const run = await api("/api/runs", {
@@ -74,13 +74,10 @@ async function stopRun() {
 }
 
 async function resetRun() {
-  const runToStop = activeRunId;
-  if (runToStop) {
-    try {
-      await api(`/api/runs/${runToStop}/stop`, { method: "POST" });
-    } catch {
-      // The run may belong to a previous server process; resetting the local UI is still useful.
-    }
+  try {
+    await api("/api/runs/stop-all", { method: "POST" });
+  } catch {
+    // The server may have restarted; resetting the local UI is still useful.
   }
   reset();
 }
