@@ -77,6 +77,19 @@ async function route(request, response) {
     return;
   }
 
+  if (request.method === 'GET' && url.pathname === '/api/runs') {
+    sendJson(response, 200, {
+      runs: [...runs.values()].map((run) => ({
+        id: run.id,
+        status: run.status,
+        prompt: run.prompt,
+        createdAt: run.createdAt,
+        updatedAt: run.updatedAt,
+      })),
+    });
+    return;
+  }
+
   if (request.method === 'POST' && url.pathname === '/api/runs') {
     const body = await readJson(request);
     if (body.stopPrevious === true) {
@@ -86,6 +99,16 @@ async function route(request, response) {
     runs.set(run.id, run);
     bootRun(run).catch((error) => failRun(run, error));
     sendJson(response, 202, serializeRun(run));
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/runs/latest') {
+    const run = latestRun();
+    if (!run) {
+      sendJson(response, 404, { error: 'no runs yet' });
+      return;
+    }
+    sendJson(response, 200, serializeRun(run));
     return;
   }
 
@@ -1041,6 +1064,10 @@ function findRun(id) {
     throw error;
   }
   return run;
+}
+
+function latestRun() {
+  return [...runs.values()].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0] || null;
 }
 
 async function serveStatic(urlPath, response) {

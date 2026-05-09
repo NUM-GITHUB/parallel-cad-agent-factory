@@ -14,11 +14,13 @@ const refreshRateEl = document.querySelector("#refreshRate");
 
 let activeRunId = null;
 let pollTimer = null;
+const defaultRunButtonText = runButton.textContent;
 
 function reset() {
   clearPoll();
   activeRunId = null;
   runButton.disabled = false;
+  runButton.textContent = defaultRunButtonText;
   stopButton.disabled = true;
   runIdEl.textContent = "none";
   kernelCountEl.textContent = "0";
@@ -38,6 +40,7 @@ function setStatus(el, state, text) {
 
 async function startRun() {
   runButton.disabled = true;
+  runButton.textContent = "Creating...";
   stopButton.disabled = true;
   setStatus(plannerStatus, "running", "planning");
   setStatus(monitorStatus, "running", "creating");
@@ -49,13 +52,25 @@ async function startRun() {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ prompt: promptInput.value }),
-    });
+    }, 12000);
     activeRunId = run.id;
     renderRun(run);
     startPoll(run.refreshMs);
   } catch (error) {
-    showError(error);
+    await recoverLatestRun(error);
+  }
+}
+
+async function recoverLatestRun(originalError) {
+  try {
+    const run = await api("/api/runs/latest", {}, 5000);
+    activeRunId = run.id;
+    renderRun(run);
+    startPoll(run.refreshMs);
+  } catch {
+    showError(originalError);
     runButton.disabled = false;
+    runButton.textContent = defaultRunButtonText;
   }
 }
 
@@ -112,6 +127,7 @@ function renderRun(run) {
   kernelCountEl.textContent = String(run.workers.length);
   refreshRateEl.textContent = `${Math.round(run.refreshMs / 1000)} sec screenshots`;
   runButton.disabled = !["failed", "stopped", "complete"].includes(run.status);
+  runButton.textContent = defaultRunButtonText;
   stopButton.disabled = ["failed", "stopped"].includes(run.status);
 
   renderPlan(run);
@@ -222,8 +238,12 @@ function renderManifest(run) {
   );
 }
 
-async function api(path, options = {}) {
-  const response = await fetch(path, options);
+async function api(path, options = {}, timeoutMs = 15000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const response = await fetch(path, { ...options, signal: controller.signal }).finally(() => {
+    clearTimeout(timeoutId);
+  });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(payload.error || `Request failed: ${response.status}`);

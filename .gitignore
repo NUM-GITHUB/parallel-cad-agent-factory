@@ -4,4 +4,4 @@ node_modules/
 .env.local
 .lightcone-runs/
 *.log
-
+/demo-results/factory-ui-*.png
