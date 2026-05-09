@@ -501,7 +501,7 @@ async function runCodexAgent(run, worker) {
       ? buildAssemblyManifest(run, worker, actions)
       : buildPartManifest(worker, actions);
     worker.finalText = isDispatchAssemblyAgent(worker)
-      ? `Codex backend complete: imported ${worker.partManifest.sources.length} CAD Agent manifests and assembled ${actions.length} placements.`
+      ? `Codex backend complete: imported ${worker.partManifest.sources.length} CAD Agent manifests and assembled ${worker.partManifest.placements.length} source primitives.`
       : `Codex backend complete: exported ${worker.partManifest.id} with ${actions.length} placement${actions.length === 1 ? '' : 's'}.`;
   } catch (error) {
     worker.agentStatus = 'failed';
@@ -516,13 +516,12 @@ async function runCodexAgent(run, worker) {
 function codexPartActions(worker) {
   const plans = {
     body: [
-      { shape: 'box', x: 0.5, y: 0.55, label: 'green torso block' },
-      { shape: 'box', x: 0.5, y: 0.44, label: 'front chest volume' },
+      { shape: 'box', x: 0.5, y: 0.55, label: 'green rounded torso block' },
     ],
     head: [
       { shape: 'box', x: 0.5, y: 0.42, label: 'purple head block' },
-      { shape: 'sphere', x: 0.44, y: 0.39, label: 'left face detail' },
-      { shape: 'sphere', x: 0.56, y: 0.39, label: 'right face detail' },
+      { shape: 'sphere', x: 0.44, y: 0.39, label: 'left head sensor' },
+      { shape: 'sphere', x: 0.56, y: 0.39, label: 'right head sensor' },
     ],
     arms: [
       { shape: 'cylinder', x: 0.35, y: 0.52, label: 'left orange arm' },
@@ -559,6 +558,7 @@ function buildPartManifest(worker, actions) {
       id: `${worker.id}-${index + 1}`,
       primitive: action.shape,
       label: action.label,
+      color: action.color || worker.color,
       x: action.x,
       y: action.y,
     })),
@@ -568,6 +568,38 @@ function buildPartManifest(worker, actions) {
 
 function buildAssemblyManifest(run, worker, actions) {
   const sources = run.workers.filter((item) => isCadAgentInstance(item)).map((item) => item.partManifest).filter(Boolean);
+  const placements = actions.flatMap((action, actionIndex) => {
+    const source = sources.find((item) => item.id === action.sourceManifestId);
+    if (!source?.placements?.length) {
+      return [
+        {
+          id: `assembly-${actionIndex + 1}`,
+          importedFrom: action.sourceManifestId,
+          sourceWorkerId: action.sourceWorkerId,
+          part: action.part,
+          primitive: action.part,
+          label: action.label,
+          color: source?.color || action.color,
+          x: action.x,
+          y: action.y,
+        },
+      ];
+    }
+
+    return transformSourcePlacements(source, action).map((placement, placementIndex) => ({
+      id: `assembly-${actionIndex + 1}-${placementIndex + 1}`,
+      importedFrom: action.sourceManifestId,
+      sourceWorkerId: action.sourceWorkerId,
+      sourcePlacementId: placement.sourcePlacementId,
+      part: action.part,
+      primitive: placement.primitive,
+      label: placement.label,
+      color: placement.color,
+      x: placement.x,
+      y: placement.y,
+    }));
+  });
+
   return {
     id: `assembly-manifest-${run.id}`,
     sourceWorkerId: worker.id,
@@ -582,37 +614,12 @@ function buildAssemblyManifest(run, worker, actions) {
       part: source.part,
       placementCount: source.placements.length,
     })),
-    placements: actions.map((action, index) => ({
-      id: `assembly-${index + 1}`,
-      importedFrom: action.sourceManifestId,
-      sourceWorkerId: action.sourceWorkerId,
-      part: action.part,
-      label: action.label,
-      x: action.x,
-      y: action.y,
-    })),
+    placements,
     exportedAt: new Date().toISOString(),
   };
 }
 
 function codexAssemblyActions(run) {
-  const actionByPart = {
-    body: [{ part: 'body', x: 0.5, y: 0.56, label: 'assembled body' }],
-    head: [{ part: 'head', x: 0.5, y: 0.44, label: 'assembled head' }],
-    arms: [
-      { part: 'arms', x: 0.4, y: 0.54, label: 'left assembled arm' },
-      { part: 'arms', x: 0.6, y: 0.54, label: 'right assembled arm' },
-    ],
-    feet: [
-      { part: 'feet', x: 0.44, y: 0.65, label: 'left wheel foot' },
-      { part: 'feet', x: 0.56, y: 0.65, label: 'right wheel foot' },
-    ],
-    details: [{ part: 'details', x: 0.5, y: 0.56, label: 'chest screen/details' }],
-    wings: [
-      { part: 'wings', x: 0.28, y: 0.48, label: 'left wing' },
-      { part: 'wings', x: 0.72, y: 0.48, label: 'right wing' },
-    ],
-  };
   const manifests = run.workers.filter((worker) => isCadAgentInstance(worker)).map((worker) => worker.partManifest).filter(Boolean);
   const sourcePlans = manifests.length
     ? manifests
@@ -623,15 +630,56 @@ function codexAssemblyActions(run) {
         part: worker.id,
       }));
 
-  return sourcePlans.flatMap((source) => {
-    const actions = actionByPart[source.part] || [{ part: source.part, x: 0.5, y: 0.5, label: source.part }];
-    return actions.map((action) => ({
-      ...action,
+  return sourcePlans.map((source) => {
+    const anchor = assemblyAnchorForPart(source.part);
+    return {
+      part: source.part,
+      x: anchor.x,
+      y: anchor.y,
+      label: `import ${source.part} geometry`,
       sourceManifestId: source.id,
       sourceWorkerId: source.sourceWorkerId,
       sourceWorkerTitle: source.sourceWorkerTitle,
-    }));
+    };
   });
+}
+
+function assemblyAnchorForPart(part) {
+  const anchors = {
+    body: { x: 0.5, y: 0.56 },
+    head: { x: 0.5, y: 0.4 },
+    arms: { x: 0.5, y: 0.55 },
+    feet: { x: 0.5, y: 0.68 },
+    details: { x: 0.5, y: 0.56 },
+    wings: { x: 0.5, y: 0.5 },
+  };
+  return anchors[part] || { x: 0.5, y: 0.5 };
+}
+
+function transformSourcePlacements(source, action, scale = 0.62) {
+  const bounds = placementBounds(source.placements);
+  return source.placements.map((placement) => ({
+    sourcePlacementId: placement.id,
+    primitive: placement.primitive,
+    label: placement.label,
+    color: placement.color || source.color,
+    x: roundRatio(action.x + (placement.x - bounds.centerX) * scale),
+    y: roundRatio(action.y + (placement.y - bounds.centerY) * scale),
+  }));
+}
+
+function placementBounds(placements) {
+  const xs = placements.map((placement) => Number(placement.x)).filter(Number.isFinite);
+  const ys = placements.map((placement) => Number(placement.y)).filter(Number.isFinite);
+  if (!xs.length || !ys.length) return { centerX: 0.5, centerY: 0.5 };
+  return {
+    centerX: (Math.min(...xs) + Math.max(...xs)) / 2,
+    centerY: (Math.min(...ys) + Math.max(...ys)) / 2,
+  };
+}
+
+function roundRatio(value) {
+  return Math.round(value * 10000) / 10000;
 }
 
 async function syncAssemblyInputs(run, worker) {
@@ -1171,11 +1219,11 @@ function kernelWorkbenchHtml(run, worker) {
     .thumb.arm { width: 54px; height: 14px; border-radius: 999px; background: #ed7a22; }
     .thumb.foot { width: 42px; height: 23px; border-radius: 50%; background: #1664c0; }
     .thumb.detail { width: 40px; height: 26px; border-radius: 6px; background: #e7b32b; }
-    .placed { position: absolute; z-index: 4; display: grid; place-items: center; color: transparent; font-size: 11px; font-weight: 800; box-shadow: 0 18px 28px rgba(21,38,55,.18); }
-    .placed.box { width: 92px; height: 74px; border-radius: 12px; background: ${worker.color}; box-shadow: inset -12px -14px rgba(0,0,0,.1), 0 18px 28px rgba(21,38,55,.18); }
-    .placed.cylinder { width: 86px; height: 74px; border-radius: 50% / 18%; background: ${worker.color}; box-shadow: inset -10px -14px rgba(0,0,0,.12), 0 18px 28px rgba(21,38,55,.18); }
-    .placed.sphere { width: 70px; height: 70px; border-radius: 50%; background: radial-gradient(circle at 30% 24%, #fff 0 7%, ${worker.color} 30%, #255fae 100%); }
-    .placed.cone { width: 0; height: 0; border-left: 40px solid transparent; border-right: 40px solid transparent; border-bottom: 78px solid ${worker.color}; filter: drop-shadow(0 16px 14px rgba(21,38,55,.2)); }
+    .placed { --part-color: ${worker.color}; --part-dark: #255fae; position: absolute; z-index: 4; display: grid; place-items: center; color: transparent; font-size: 11px; font-weight: 800; box-shadow: 0 18px 28px rgba(21,38,55,.18); }
+    .placed.box { width: 92px; height: 74px; border-radius: 12px; background: var(--part-color); box-shadow: inset -12px -14px rgba(0,0,0,.1), 0 18px 28px rgba(21,38,55,.18); }
+    .placed.cylinder { width: 86px; height: 74px; border-radius: 50% / 18%; background: var(--part-color); box-shadow: inset -10px -14px rgba(0,0,0,.12), 0 18px 28px rgba(21,38,55,.18); }
+    .placed.sphere { width: 70px; height: 70px; border-radius: 50%; background: radial-gradient(circle at 30% 24%, #fff 0 7%, var(--part-color) 30%, var(--part-dark) 100%); }
+    .placed.cone { width: 0; height: 0; border-left: 40px solid transparent; border-right: 40px solid transparent; border-bottom: 78px solid var(--part-color); filter: drop-shadow(0 16px 14px rgba(21,38,55,.2)); }
     .placed.body { width: 112px; height: 92px; border-radius: 18px; background: linear-gradient(145deg, #38b76a, #22814d); box-shadow: inset -12px -16px rgba(0,0,0,.12), 0 18px 28px rgba(21,38,55,.18); }
     .placed.head { width: 86px; height: 72px; border-radius: 22px 22px 18px 18px; background: linear-gradient(145deg, #7b52d1, #5632a7); box-shadow: inset -10px -12px rgba(0,0,0,.14), 0 18px 28px rgba(21,38,55,.18); }
     .placed.head::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #f6fbff; box-shadow: 30px 0 #f6fbff; transform: translateX(-15px); }
@@ -1183,6 +1231,15 @@ function kernelWorkbenchHtml(run, worker) {
     .placed.foot { width: 78px; height: 36px; border-radius: 999px; background: radial-gradient(circle at 30% 30%, #2e83e6 0 18%, #1664c0 46%, #0d4387 100%); box-shadow: inset -8px -8px rgba(0,0,0,.14), 0 14px 22px rgba(21,38,55,.16); }
     .placed.detail { width: 62px; height: 38px; border-radius: 9px; background: linear-gradient(145deg, #ffd34f, #d9a90d); box-shadow: inset -7px -8px rgba(0,0,0,.12), 0 14px 20px rgba(21,38,55,.14); }
     .placed.detail::before { content: ""; width: 36px; height: 16px; border-radius: 4px; background: #18324f; box-shadow: inset 0 0 0 2px rgba(255,255,255,.18); }
+    .placed.source-body.box { width: 112px; height: 92px; border-radius: 18px; background: linear-gradient(145deg, var(--part-color), var(--part-dark)); }
+    .placed.source-head.box { width: 86px; height: 72px; border-radius: 22px 22px 18px 18px; background: linear-gradient(145deg, var(--part-color), var(--part-dark)); }
+    .placed.source-head.box::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #f6fbff; box-shadow: 30px 0 #f6fbff; transform: translateX(-15px); }
+    .placed.source-head.sphere { width: 26px; height: 26px; background: radial-gradient(circle at 30% 24%, #fff 0 10%, var(--part-color) 34%, var(--part-dark) 100%); }
+    .placed.source-arms.cylinder { width: 96px; height: 24px; border-radius: 999px; background: linear-gradient(145deg, var(--part-color), var(--part-dark)); }
+    .placed.source-feet.cylinder { width: 78px; height: 36px; border-radius: 999px; background: radial-gradient(circle at 30% 30%, #2e83e6 0 18%, var(--part-color) 46%, var(--part-dark) 100%); }
+    .placed.source-details.box { width: 62px; height: 38px; border-radius: 9px; background: linear-gradient(145deg, var(--part-color), var(--part-dark)); }
+    .placed.source-details.box::before { content: ""; width: 36px; height: 16px; border-radius: 4px; background: #18324f; box-shadow: inset 0 0 0 2px rgba(255,255,255,.18); }
+    .placed.source-details.sphere { width: 24px; height: 24px; background: radial-gradient(circle at 30% 24%, #fff 0 10%, var(--part-color) 38%, var(--part-dark) 100%); }
     .instructions { margin: 12px 0; padding: 10px; border: 1px solid #d8e1ea; border-radius: 8px; background: #f8fafc; color: #435466; line-height: 1.45; font-size: 13px; }
     .reset-project { width: 100%; margin: 0 0 12px; min-height: 42px; border: 1px solid #cfdae5; border-radius: 8px; background: #edf3f8; color: #223244; font: inherit; font-weight: 900; cursor: pointer; }
     .log { margin-bottom: 12px; padding: 10px; border: 1px solid #d8e1ea; border-radius: 8px; background: #101820; color: #dff7ec; min-height: 76px; font-size: 12px; line-height: 1.4; white-space: pre-wrap; }
@@ -1241,6 +1298,11 @@ function kernelWorkbenchHtml(run, worker) {
     const buttons = [...document.querySelectorAll(".tool")];
     const defaultSelection = ${JSON.stringify(selectedDefault)};
     const emptyLog = ${JSON.stringify(emptyLog)};
+    const isAssembler = ${JSON.stringify(isAssembler)};
+    const workerPart = ${JSON.stringify(worker.id)};
+    const workerColor = ${JSON.stringify(worker.color)};
+    const importScale = 0.62;
+    window.importedManifests = window.importedManifests || [];
     window.demoManifest = { worker: ${JSON.stringify(worker.id)}, parts: [] };
     let selected = defaultSelection;
     setSelected(selected);
@@ -1265,17 +1327,76 @@ function kernelWorkbenchHtml(run, worker) {
       const x = Math.round(event.clientX - rect.left);
       const y = Math.round(event.clientY - rect.top);
       if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
-      const part = document.createElement("div");
-      part.className = "placed " + partClass(selected);
-      const offset = partOffset(selected);
-      part.style.left = Math.round(x - offset.x) + "px";
-      part.style.top = Math.round(y - offset.y) + "px";
-      part.textContent = partLabel(selected);
-      workspace.append(part);
+
+      const imported = isAssembler ? findImportedManifest(selected) : null;
+      if (imported && imported.placements && imported.placements.length) {
+        const count = renderImportedManifest(imported, x, y);
+        workspace.classList.add("has-parts");
+        writeLog("Placed " + imported.id + " as " + count + " imported primitives at (" + x + ", " + y + ").");
+        return;
+      }
+
+      createPlaced(selected, x, y, {
+        sourcePart: isAssembler ? selected : workerPart,
+        color: isAssembler ? paletteColor(selected) : workerColor,
+      });
       workspace.classList.add("has-parts");
-      window.demoManifest.parts.push({ part: selected, x, y });
       writeLog("Placed " + selected + " at (" + x + ", " + y + ").");
     });
+
+    function renderImportedManifest(manifest, anchorX, anchorY) {
+      const bounds = manifestBounds(manifest.placements);
+      const rect = workspace.getBoundingClientRect();
+      let count = 0;
+      for (const placement of manifest.placements) {
+        const x = anchorX + (Number(placement.x) - bounds.centerX) * rect.width * importScale;
+        const y = anchorY + (Number(placement.y) - bounds.centerY) * rect.height * importScale;
+        createPlaced(placement.primitive, x, y, {
+          sourcePart: manifest.part,
+          color: placement.color || manifest.color,
+          manifestId: manifest.id,
+          sourcePlacementId: placement.id,
+          label: placement.label,
+        });
+        count += 1;
+      }
+      return count;
+    }
+
+    function createPlaced(shape, x, y, options = {}) {
+      const sourcePart = options.sourcePart || workerPart;
+      const part = document.createElement("div");
+      part.className = "placed " + partClass(shape) + " source-" + safeClass(sourcePart);
+      setPartColor(part, options.color || workerColor);
+      const offset = partOffset(shape, sourcePart);
+      part.style.left = Math.round(x - offset.x) + "px";
+      part.style.top = Math.round(y - offset.y) + "px";
+      part.textContent = partLabel(shape);
+      workspace.append(part);
+      window.demoManifest.parts.push({
+        part: sourcePart,
+        primitive: shape,
+        x: Math.round(x),
+        y: Math.round(y),
+        manifestId: options.manifestId || null,
+        sourcePlacementId: options.sourcePlacementId || null,
+        label: options.label || "",
+      });
+    }
+
+    function findImportedManifest(part) {
+      return (window.importedManifests || []).find((manifest) => manifest.part === part);
+    }
+
+    function manifestBounds(placements) {
+      const xs = placements.map((placement) => Number(placement.x)).filter(Number.isFinite);
+      const ys = placements.map((placement) => Number(placement.y)).filter(Number.isFinite);
+      if (!xs.length || !ys.length) return { centerX: 0.5, centerY: 0.5 };
+      return {
+        centerX: (Math.min(...xs) + Math.max(...xs)) / 2,
+        centerY: (Math.min(...ys) + Math.max(...ys)) / 2,
+      };
+    }
 
     function setSelected(value) {
       for (const button of buttons) {
@@ -1298,7 +1419,18 @@ function kernelWorkbenchHtml(run, worker) {
       return classes[value] || "box";
     }
 
-    function partOffset(value) {
+    function partOffset(value, sourcePart = workerPart) {
+      const sourceOffsets = {
+        "body:box": { x: 56, y: 46 },
+        "head:box": { x: 43, y: 36 },
+        "head:sphere": { x: 13, y: 13 },
+        "arms:cylinder": { x: 48, y: 12 },
+        "feet:cylinder": { x: 39, y: 18 },
+        "details:box": { x: 31, y: 19 },
+        "details:sphere": { x: 12, y: 12 },
+      };
+      const sourceKey = sourcePart + ":" + value;
+      if (sourceOffsets[sourceKey]) return sourceOffsets[sourceKey];
       const offsets = {
         box: { x: 46, y: 37 },
         cylinder: { x: 43, y: 37 },
@@ -1311,6 +1443,37 @@ function kernelWorkbenchHtml(run, worker) {
         details: { x: 31, y: 19 },
       };
       return offsets[value] || { x: 40, y: 34 };
+    }
+
+    function paletteColor(value) {
+      const colors = {
+        body: "#2f9e59",
+        head: "#6842b9",
+        arms: "#ed7a22",
+        feet: "#1664c0",
+        details: "#e7b32b",
+        wings: "#38b6d8",
+      };
+      return colors[value] || workerColor;
+    }
+
+    function setPartColor(element, color) {
+      element.style.setProperty("--part-color", color);
+      element.style.setProperty("--part-dark", darkenHex(color, 34));
+    }
+
+    function darkenHex(hex, amount) {
+      const clean = String(hex || "").replace("#", "");
+      if (!/^[0-9a-f]{6}$/i.test(clean)) return "#1d3550";
+      const next = [0, 2, 4].map((start) => {
+        const channel = Math.max(0, Number.parseInt(clean.slice(start, start + 2), 16) - amount);
+        return channel.toString(16).padStart(2, "0");
+      });
+      return "#" + next.join("");
+    }
+
+    function safeClass(value) {
+      return String(value || "part").toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
     }
 
     function partLabel(value) {
