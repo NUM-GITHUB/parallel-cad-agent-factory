@@ -436,6 +436,19 @@ dd {
   background: #dbf6e5;
 }
 
+.manifest-chip {
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid #b8d7ff;
+  border-radius: 999px;
+  padding: 7px 9px;
+  color: #083a70;
+  background: #eaf4ff;
+  font-size: 12px;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+
 .refresh-line {
   display: flex;
   align-items: center;

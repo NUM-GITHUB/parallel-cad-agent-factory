@@ -80,6 +80,19 @@ async function recoverLatestRun(originalError) {
   }
 }
 
+async function loadLatestRun() {
+  try {
+    const run = await api("/api/runs/latest", {}, 5000);
+    activeRunId = run.id;
+    renderRun(run);
+    if (!["failed", "stopped", "complete"].includes(run.status)) {
+      startPoll(run.refreshMs);
+    }
+  } catch {
+    // No run has been created yet in this server process.
+  }
+}
+
 async function stopRun() {
   if (!activeRunId) return;
   stopButton.disabled = true;
@@ -188,6 +201,9 @@ function renderMonitor(run) {
       const error = worker.error || worker.agentError ? `<span>error: ${escapeHtml(worker.error || worker.agentError)}</span>` : "";
       const lastAction = worker.lastAction ? `<div class="last-action">last action: ${escapeHtml(worker.lastAction)}</div>` : "";
       const finalText = worker.finalText ? `<div class="final-text">${escapeHtml(worker.finalText)}</div>` : "";
+      const manifestText = worker.partManifest
+        ? `<div class="manifest-chip">${escapeHtml(worker.partManifest.id)}${worker.partManifest.sources ? ` · imported ${escapeHtml(worker.partManifest.sources.length)} manifests` : ` · ${escapeHtml(worker.partManifest.placements?.length || 0)} placements`}</div>`
+        : "";
       return `<article class="kernel-card">
         <div class="kernel-top">
           <div class="kernel-title">
@@ -209,6 +225,7 @@ function renderMonitor(run) {
           </div>
           ${lastAction}
           ${finalText}
+          ${manifestText}
           <div class="kernel-links">${liveLink}${session}${error}</div>
         </div>
       </article>`;
@@ -239,6 +256,7 @@ function renderManifest(run) {
         lastAction: worker.lastAction,
         finalText: worker.finalText,
         agentBackend: worker.agentBackend,
+        partManifest: worker.partManifest,
         sessionId: worker.sessionId,
         liveViewUrl: worker.liveViewUrl,
         screenshotVersion: worker.screenshotVersion,
@@ -292,3 +310,4 @@ stopButton.addEventListener("click", stopRun);
 resetButton.addEventListener("click", resetRun);
 
 reset();
+loadLatestRun();

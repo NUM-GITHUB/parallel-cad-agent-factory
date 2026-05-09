@@ -209,6 +209,7 @@ function createRun(prompt, options = {}) {
     actionCount: 0,
     lastAction: null,
     finalText: '',
+    partManifest: null,
     agentError: null,
     agentStartedAt: null,
     agentFinishedAt: null,
@@ -470,6 +471,10 @@ async function runCodexAgent(run, worker) {
     await clickWorkbenchElement(run, worker, '#resetProject', 'Reset Project');
     await captureWorker(worker);
 
+    if (isDispatchAssemblyAgent(worker)) {
+      await syncAssemblyInputs(run, worker);
+    }
+
     const actions = isDispatchAssemblyAgent(worker) ? codexAssemblyActions(run) : codexPartActions(worker);
     let step = 2;
     for (const action of actions) {
@@ -492,7 +497,12 @@ async function runCodexAgent(run, worker) {
     }
 
     worker.agentStatus = 'complete';
-    worker.finalText = `Codex backend complete: reset project, built ${worker.assignment} with ${actions.length} placement${actions.length === 1 ? '' : 's'}.`;
+    worker.partManifest = isDispatchAssemblyAgent(worker)
+      ? buildAssemblyManifest(run, worker, actions)
+      : buildPartManifest(worker, actions);
+    worker.finalText = isDispatchAssemblyAgent(worker)
+      ? `Codex backend complete: imported ${worker.partManifest.sources.length} CAD Agent manifests and assembled ${actions.length} placements.`
+      : `Codex backend complete: exported ${worker.partManifest.id} with ${actions.length} placement${actions.length === 1 ? '' : 's'}.`;
   } catch (error) {
     worker.agentStatus = 'failed';
     worker.agentError = error.message;
@@ -535,6 +545,56 @@ function codexPartActions(worker) {
   return plans[worker.id] || [{ shape: 'box', x: 0.5, y: 0.5, label: worker.assignment || worker.id }];
 }
 
+function buildPartManifest(worker, actions) {
+  return {
+    id: `part-manifest-${worker.id}`,
+    sourceWorkerId: worker.id,
+    sourceWorkerTitle: worker.title,
+    template: worker.template,
+    part: worker.id,
+    assignment: worker.assignment,
+    color: worker.color,
+    contract: worker.contract,
+    placements: actions.map((action, index) => ({
+      id: `${worker.id}-${index + 1}`,
+      primitive: action.shape,
+      label: action.label,
+      x: action.x,
+      y: action.y,
+    })),
+    exportedAt: new Date().toISOString(),
+  };
+}
+
+function buildAssemblyManifest(run, worker, actions) {
+  const sources = run.workers.filter((item) => isCadAgentInstance(item)).map((item) => item.partManifest).filter(Boolean);
+  return {
+    id: `assembly-manifest-${run.id}`,
+    sourceWorkerId: worker.id,
+    sourceWorkerTitle: worker.title,
+    template: worker.template,
+    part: 'final assembly',
+    assignment: worker.assignment,
+    sources: sources.map((source) => ({
+      id: source.id,
+      sourceWorkerId: source.sourceWorkerId,
+      sourceWorkerTitle: source.sourceWorkerTitle,
+      part: source.part,
+      placementCount: source.placements.length,
+    })),
+    placements: actions.map((action, index) => ({
+      id: `assembly-${index + 1}`,
+      importedFrom: action.sourceManifestId,
+      sourceWorkerId: action.sourceWorkerId,
+      part: action.part,
+      label: action.label,
+      x: action.x,
+      y: action.y,
+    })),
+    exportedAt: new Date().toISOString(),
+  };
+}
+
 function codexAssemblyActions(run) {
   const actionByPart = {
     body: [{ part: 'body', x: 0.5, y: 0.56, label: 'assembled body' }],
@@ -553,7 +613,42 @@ function codexAssemblyActions(run) {
       { part: 'wings', x: 0.72, y: 0.48, label: 'right wing' },
     ],
   };
-  return run.plan.workers.flatMap((worker) => actionByPart[worker.id] || [{ part: worker.id, x: 0.5, y: 0.5, label: worker.assignment }]);
+  const manifests = run.workers.filter((worker) => isCadAgentInstance(worker)).map((worker) => worker.partManifest).filter(Boolean);
+  const sourcePlans = manifests.length
+    ? manifests
+    : run.plan.workers.map((worker) => ({
+        id: `planned-${worker.id}`,
+        sourceWorkerId: worker.id,
+        sourceWorkerTitle: worker.title,
+        part: worker.id,
+      }));
+
+  return sourcePlans.flatMap((source) => {
+    const actions = actionByPart[source.part] || [{ part: source.part, x: 0.5, y: 0.5, label: source.part }];
+    return actions.map((action) => ({
+      ...action,
+      sourceManifestId: source.id,
+      sourceWorkerId: source.sourceWorkerId,
+      sourceWorkerTitle: source.sourceWorkerTitle,
+    }));
+  });
+}
+
+async function syncAssemblyInputs(run, worker) {
+  const manifests = run.workers.filter((item) => isCadAgentInstance(item)).map((item) => item.partManifest).filter(Boolean);
+  await playwrightExecute(
+    worker.sessionId,
+    `await page.evaluate((manifests) => {
+  window.importedManifests = manifests;
+  const imported = document.querySelector("#importedOutputs");
+  if (imported) imported.textContent = JSON.stringify(manifests, null, 2);
+  const log = document.querySelector("#log");
+  if (log) {
+    log.textContent = "Project reset. Scene is empty.\\nImported " + manifests.length + " CAD Agent output manifests.";
+  }
+}, ${JSON.stringify(manifests)});`,
+  );
+  recordCodexAction(run, worker, `codex imported ${manifests.length} CAD Agent manifests`);
 }
 
 async function clickWorkbenchElement(run, worker, selector, label) {
@@ -1076,14 +1171,18 @@ function kernelWorkbenchHtml(run, worker) {
     .thumb.arm { width: 54px; height: 14px; border-radius: 999px; background: #ed7a22; }
     .thumb.foot { width: 42px; height: 23px; border-radius: 50%; background: #1664c0; }
     .thumb.detail { width: 40px; height: 26px; border-radius: 6px; background: #e7b32b; }
-    .placed { position: absolute; z-index: 4; display: grid; place-items: center; color: white; font-size: 11px; font-weight: 800; box-shadow: 0 16px 24px rgba(21,38,55,.18); }
-    .placed.box, .placed.body { width: 92px; height: 74px; border-radius: 9px; background: ${isAssembler ? '#2f9e59' : worker.color}; }
-    .placed.cylinder { width: 86px; height: 74px; border-radius: 50% / 18%; background: ${worker.color}; }
-    .placed.sphere, .placed.head { width: 70px; height: 70px; border-radius: 50%; background: ${isAssembler ? '#6842b9' : worker.color}; }
+    .placed { position: absolute; z-index: 4; display: grid; place-items: center; color: transparent; font-size: 11px; font-weight: 800; box-shadow: 0 18px 28px rgba(21,38,55,.18); }
+    .placed.box { width: 92px; height: 74px; border-radius: 12px; background: ${worker.color}; box-shadow: inset -12px -14px rgba(0,0,0,.1), 0 18px 28px rgba(21,38,55,.18); }
+    .placed.cylinder { width: 86px; height: 74px; border-radius: 50% / 18%; background: ${worker.color}; box-shadow: inset -10px -14px rgba(0,0,0,.12), 0 18px 28px rgba(21,38,55,.18); }
+    .placed.sphere { width: 70px; height: 70px; border-radius: 50%; background: radial-gradient(circle at 30% 24%, #fff 0 7%, ${worker.color} 30%, #255fae 100%); }
     .placed.cone { width: 0; height: 0; border-left: 40px solid transparent; border-right: 40px solid transparent; border-bottom: 78px solid ${worker.color}; filter: drop-shadow(0 16px 14px rgba(21,38,55,.2)); }
-    .placed.arm { width: 98px; height: 24px; border-radius: 999px; background: #ed7a22; }
-    .placed.foot { width: 78px; height: 38px; border-radius: 50%; background: #1664c0; }
-    .placed.detail { width: 66px; height: 34px; border-radius: 7px; background: #e7b32b; color: #182330; }
+    .placed.body { width: 112px; height: 92px; border-radius: 18px; background: linear-gradient(145deg, #38b76a, #22814d); box-shadow: inset -12px -16px rgba(0,0,0,.12), 0 18px 28px rgba(21,38,55,.18); }
+    .placed.head { width: 86px; height: 72px; border-radius: 22px 22px 18px 18px; background: linear-gradient(145deg, #7b52d1, #5632a7); box-shadow: inset -10px -12px rgba(0,0,0,.14), 0 18px 28px rgba(21,38,55,.18); }
+    .placed.head::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #f6fbff; box-shadow: 30px 0 #f6fbff; transform: translateX(-15px); }
+    .placed.arm { width: 96px; height: 24px; border-radius: 999px; background: linear-gradient(145deg, #ff8f2d, #d96512); box-shadow: inset -8px -8px rgba(0,0,0,.12), 0 14px 22px rgba(21,38,55,.16); }
+    .placed.foot { width: 78px; height: 36px; border-radius: 999px; background: radial-gradient(circle at 30% 30%, #2e83e6 0 18%, #1664c0 46%, #0d4387 100%); box-shadow: inset -8px -8px rgba(0,0,0,.14), 0 14px 22px rgba(21,38,55,.16); }
+    .placed.detail { width: 62px; height: 38px; border-radius: 9px; background: linear-gradient(145deg, #ffd34f, #d9a90d); box-shadow: inset -7px -8px rgba(0,0,0,.12), 0 14px 20px rgba(21,38,55,.14); }
+    .placed.detail::before { content: ""; width: 36px; height: 16px; border-radius: 4px; background: #18324f; box-shadow: inset 0 0 0 2px rgba(255,255,255,.18); }
     .instructions { margin: 12px 0; padding: 10px; border: 1px solid #d8e1ea; border-radius: 8px; background: #f8fafc; color: #435466; line-height: 1.45; font-size: 13px; }
     .reset-project { width: 100%; margin: 0 0 12px; min-height: 42px; border: 1px solid #cfdae5; border-radius: 8px; background: #edf3f8; color: #223244; font: inherit; font-weight: 900; cursor: pointer; }
     .log { margin-bottom: 12px; padding: 10px; border: 1px solid #d8e1ea; border-radius: 8px; background: #101820; color: #dff7ec; min-height: 76px; font-size: 12px; line-height: 1.4; white-space: pre-wrap; }
@@ -1115,7 +1214,7 @@ function kernelWorkbenchHtml(run, worker) {
           <span id="tick" class="tick">tick 0</span>
         </div>
       </div>
-      <div class="ghost">${escapeHtml(isAssembler ? 'Assembly workplane waiting for worker outputs' : `${worker.id} workplane waiting for Northstar actions`)}</div>
+      <div class="ghost">${escapeHtml(isAssembler ? 'Assembly workplane waiting for imported worker manifests' : `${worker.id} workplane waiting for CAD Agent actions`)}</div>
       <div class="label">${escapeHtml(isAssembler ? 'Assembler' : worker.id)}</div>
     </section>
     <aside>
@@ -1130,6 +1229,7 @@ function kernelWorkbenchHtml(run, worker) {
         <pre>${escapeHtml(JSON.stringify(worker.contract, null, 2))}</pre>
       </div>
       ${isAssembler ? `<div class="contract"><strong>CAD Agent contracts</strong><pre>${escapeHtml(JSON.stringify(contracts, null, 2))}</pre></div>` : ''}
+      ${isAssembler ? `<div class="contract"><strong>Imported CAD Agent outputs</strong><pre id="importedOutputs">[]</pre></div>` : ''}
     </aside>
   </main>
   <script>
@@ -1204,17 +1304,17 @@ function kernelWorkbenchHtml(run, worker) {
         cylinder: { x: 43, y: 37 },
         sphere: { x: 35, y: 35 },
         cone: { x: 40, y: 74 },
-        body: { x: 46, y: 37 },
-        head: { x: 35, y: 35 },
-        arms: { x: 49, y: 12 },
-        feet: { x: 39, y: 19 },
-        details: { x: 33, y: 17 },
+        body: { x: 56, y: 46 },
+        head: { x: 43, y: 36 },
+        arms: { x: 48, y: 12 },
+        feet: { x: 39, y: 18 },
+        details: { x: 31, y: 19 },
       };
       return offsets[value] || { x: 40, y: 34 };
     }
 
     function partLabel(value) {
-      return ["body", "head", "details"].includes(value) ? value.toUpperCase() : "";
+      return "";
     }
 
     function writeLog(line) {
@@ -1319,6 +1419,7 @@ function serializeRun(run) {
       actionCount: worker.actionCount,
       lastAction: worker.lastAction,
       finalText: worker.finalText,
+      partManifest: worker.partManifest,
       agentError: worker.agentError,
       screenshotUrl: `/api/runs/${run.id}/workers/${worker.id}/screenshot?v=${worker.screenshotVersion}`,
     })),
