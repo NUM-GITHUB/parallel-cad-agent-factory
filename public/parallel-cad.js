@@ -4,6 +4,7 @@ const stopButton = document.querySelector("#stopButton");
 const resetButton = document.querySelector("#resetButton");
 const freshProjectInput = document.querySelector("#freshProject");
 const agentBackendInput = document.querySelector("#agentBackend");
+const cadStrategyInput = document.querySelector("#cadStrategy");
 const planList = document.querySelector("#planList");
 const monitorGrid = document.querySelector("#monitorGrid");
 const manifestEl = document.querySelector("#manifest");
@@ -57,6 +58,7 @@ async function startRun() {
         prompt: promptInput.value,
         stopPrevious: freshProjectInput.checked,
         agentBackend: agentBackendInput.value,
+        cadStrategy: cadStrategyInput.value,
       }),
     }, 12000);
     activeRunId = run.id;
@@ -239,6 +241,9 @@ function renderManifest(run) {
       runId: run.id,
       status: run.status,
       strategy: run.strategy,
+      cadStrategy: run.cadStrategy,
+      requestedCadStrategy: run.requestedCadStrategy,
+      tutorialFallback: run.tutorialFallback,
       factory: run.factory,
       freshProject: run.freshProject,
       agentBackend: run.agentBackend,

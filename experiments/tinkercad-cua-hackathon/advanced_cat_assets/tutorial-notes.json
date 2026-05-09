@@ -1,0 +1,176 @@
+{
+  "sourceVideo": "https://www.youtube.com/watch?v=gDMqKux9Bzo",
+  "sourceTitle": "Tinkercad Tutorial - How To Make An Advanced 3D Cat",
+  "sourceAuthor": "Circuits With Angel",
+  "outputFiles": {
+    "obj": "advanced_cat_assets/advanced_3d_cat.obj",
+    "mtl": "advanced_cat_assets/advanced_3d_cat.mtl",
+    "stl": "advanced_cat_assets/advanced_3d_cat.stl",
+    "preview": "advanced_cat_assets/advanced_3d_cat_preview.svg",
+    "report": "advanced_cat_assets/report.html"
+  },
+  "tutorialSteps": [
+    {
+      "time": "00:37",
+      "title": "Head",
+      "note": "Start with a sphere, scaled to about 28.26 x 24.96 x 24.66 mm."
+    },
+    {
+      "time": "00:54",
+      "title": "Ears",
+      "note": "Use mirrored paraboloids for pointed ears, plus smaller hole-like inserts to hollow the ear silhouette."
+    },
+    {
+      "time": "01:41",
+      "title": "Mouth and nose bridge",
+      "note": "Build the muzzle from overlapping spheres, then use a rounded roof/roof primitive for the bridge and nose."
+    },
+    {
+      "time": "03:14",
+      "title": "Head shaping and eyes",
+      "note": "Use hole spheres to carve eye and cheek spaces, then add mirrored eye spheres and smaller pupils."
+    },
+    {
+      "time": "05:09",
+      "title": "Body and neck",
+      "note": "Add a long sphere for the body, about 50 x 25 mm, tilt it slightly, then connect it with a tilted cylinder neck."
+    },
+    {
+      "time": "06:04",
+      "title": "Front legs",
+      "note": "Use spheres for shoulders, cylinders for upper/lower leg sections, and half-sphere paws."
+    },
+    {
+      "time": "07:13",
+      "title": "Back legs",
+      "note": "Add longer rotated spheres for back haunches and repeat the leg/paw pattern on both sides."
+    },
+    {
+      "time": "08:06",
+      "title": "Tail",
+      "note": "Use a torus, cut it with a box in Tinkercad, and stand the remaining arc up behind the body."
+    }
+  ],
+  "primitivePlan": [
+    [
+      "1",
+      "head",
+      "sphere/ellipsoid",
+      "solid",
+      "28.26 x 24.96 x 24.66 mm",
+      "front, raised",
+      "0, 0, 0",
+      "main cat skull mass"
+    ],
+    [
+      "2",
+      "left/right ears",
+      "paraboloid plus inner shell",
+      "solid / hole-like insert",
+      "14.47 x 11.64 x 16.72 mm",
+      "top sides of head",
+      "outward and forward tilt",
+      "mirrored after one ear is shaped"
+    ],
+    [
+      "3",
+      "muzzle",
+      "three overlapping spheres",
+      "solid",
+      "approx. 8 x 7 x 7 mm lobes",
+      "front lower head",
+      "0, 0, 0",
+      "two upper lobes plus one lower lobe"
+    ],
+    [
+      "4",
+      "nose bridge and nose",
+      "round roof and roof wedge",
+      "solid",
+      "bridge 7 x 2 mm, nose 5 x 2 mm",
+      "centered on muzzle",
+      "nose rotated 180 deg",
+      "tutorial roof-shape landmark"
+    ],
+    [
+      "5",
+      "eye sockets and eyes",
+      "hole spheres, eye spheres",
+      "solid approximation",
+      "eyes about 7.27 x 8.23 x 7 mm, pupils 3 x 3 x 4 mm",
+      "front upper head",
+      "front-facing",
+      "large cartoon eyes from thumbnail"
+    ],
+    [
+      "6",
+      "body",
+      "sphere/ellipsoid",
+      "solid",
+      "50 x 25 mm",
+      "behind head",
+      "tilted 5 deg",
+      "long horizontal mass"
+    ],
+    [
+      "7",
+      "neck",
+      "cylinder",
+      "solid",
+      "approx. 12 mm dia x 18 mm",
+      "between head/body",
+      "tilted 22.5 deg",
+      "hidden connector"
+    ],
+    [
+      "8",
+      "front legs and paws",
+      "spheres, cylinders, half spheres",
+      "solid",
+      "shoulders 13 x 14 x 11 mm, legs 8 mm dia",
+      "front underside",
+      "10 deg leg tilt",
+      "mirrored pair"
+    ],
+    [
+      "9",
+      "back legs and paws",
+      "rotated spheres, cylinders, half spheres",
+      "solid",
+      "haunches 20 x 12 mm",
+      "rear underside",
+      "slight outward rotation",
+      "mirrored pair"
+    ],
+    [
+      "10",
+      "tail",
+      "torus slice",
+      "solid",
+      "40 mm torus, 9 mm thick in tutorial",
+      "rear, upright",
+      "vertical arc",
+      "box-cut torus represented as a mesh arc"
+    ]
+  ],
+  "boundsMillimeters": {
+    "min": [
+      "-20.05894",
+      "-41.45501",
+      "0.35"
+    ],
+    "max": [
+      "20.05894",
+      "36.7",
+      "81.27125"
+    ],
+    "size": [
+      "40.11788",
+      "78.15501",
+      "80.92125"
+    ]
+  },
+  "meshCount": 37,
+  "vertexCount": 7876,
+  "faceCount": 7723
+}

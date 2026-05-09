@@ -1,0 +1,28 @@
+{
+  "name": "hackathon",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "check": "node --check demo.js && node --check tinkercad.js && node --check tinkercad-builder-app.js && node --check tinkercad-builder-app.mjs && node --check tinkercad-advanced-cat-primitives.mjs && node --check tinkercad-import-bear-doll.mjs && node --check tinkercad-advanced-cat-import.mjs && node --check tinkercad-fortnite-llama.mjs && node --check tinkercad-bear-doll.mjs",
+    "test": "npm run check",
+    "build:cat": "node build-small-3d-cat-assets.mjs",
+    "build:advanced-cat": "node build-advanced-3d-cat-assets.mjs",
+    "build:bear": "node build-bear-doll-assets.mjs",
+    "build:llama": "node build-fortnite-llama-assets.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@onkernel/sdk": "^0.52.0",
+    "@tzafon/lightcone": "^0.14.0",
+    "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  }
+}

@@ -30,6 +30,13 @@ user prompt
 
 The user only says what they want. The main agent decides which specialist agent should handle it. In this demo, it picks the CAD Agent, creates several CAD Agent instances, gives each instance a different part prompt, then assembles their outputs.
 
+The CAD creation phase has two modes:
+
+- **0-shot factory:** the Dispatch & Assembly Agent decomposes the user's prompt directly into part prompts and asks copied CAD Agent instances to build them.
+- **1-shot tutorial-guided factory:** when prompt-only CAD is unlikely to preserve the requested shape faithfully, the factory uses a tutorial-derived reference plan as the one shot. The tutorial plan supplies parts, primitives, dimensions, ordering, and source notes, then the same copied CAD Agent instances build those tutorial-informed parts in parallel.
+
+The intended product loop is: try the fast prompt-only factory path first, quality-check the assembled result, then route to the tutorial-guided workflow when a single factory pass cannot faithfully produce the requested CAD.
+
 ## Demo Flow
 
 Example prompt:
@@ -101,6 +108,7 @@ The CAD Agent is the first specialist vertical. The same platform idea could lat
 
 - Interactive local monitor UI at `public/parallel-cad.html`
 - Prompt-derived part planning, not a fixed robot-only pipeline
+- CAD strategy selector for 0-shot prompt-only planning, tutorial-guided planning, or auto fallback
 - One Kernel browser per CAD Agent instance, plus one assembly Kernel
 - MiniCAD workbench rendered inside each Kernel browser
 - Live screenshot polling every few seconds
@@ -111,6 +119,18 @@ The CAD Agent is the first specialist vertical. The same platform idea could lat
 - Fresh project option so every new run starts from a clean workspace
 - Scripted baseline demos for recordings and fallback
 
+## Tutorial-Guided Fallback
+
+The repo includes the earlier Tinkercad-focused computer-use prototype in [`experiments/tinkercad-cua-hackathon/`](experiments/tinkercad-cua-hackathon/) and promotes its tutorial metadata into the main factory workflow.
+
+In the monitor UI, **CAD strategy** controls how the CAD phase is planned:
+
+- `0-shot factory` uses only the user prompt.
+- `Tutorial guided` forces the tutorial-derived path when a matching tutorial preset is available.
+- `Auto QA fallback` selects a tutorial-derived plan for known tutorial objects such as cats, bear dolls, and Fortnite llamas; otherwise it uses the prompt-only factory path.
+
+This is the bridge between the two demos: the Agent Factory stays responsible for parallel agent orchestration, while the tutorial workflow supplies a higher-fidelity reference plan when raw prompt decomposition is not enough.
+
 ## Current Limitations
 
 This is intentionally a hackathon MVP:
@@ -119,6 +139,7 @@ This is intentionally a hackathon MVP:
 - Exported assets are simplified primitive manifests, not STL/OBJ files yet.
 - The Codex backend is deterministic so the demo is reliable.
 - Northstar can be selected, but quality and latency depend on the model run.
+- Auto tutorial fallback currently routes known tutorial objects at planning time; a full post-assembly visual QA retry loop is the next step.
 - The Agent Factory currently demonstrates the CAD Agent vertical; a full marketplace of specialist agents is the next step.
 
 ## Architecture
