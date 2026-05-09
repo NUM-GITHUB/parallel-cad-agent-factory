@@ -6,3 +6,4 @@ node_modules/
 *.log
 /demo-results/factory-ui-*.png
 /demo-results/codex-backend-*.png
+/demo-results/quality-check/

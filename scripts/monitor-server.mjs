@@ -538,14 +538,14 @@ function codexPartActions(worker) {
 function codexAssemblyActions(run) {
   const actionByPart = {
     body: [{ part: 'body', x: 0.5, y: 0.56, label: 'assembled body' }],
-    head: [{ part: 'head', x: 0.5, y: 0.38, label: 'assembled head' }],
+    head: [{ part: 'head', x: 0.5, y: 0.44, label: 'assembled head' }],
     arms: [
-      { part: 'arms', x: 0.35, y: 0.53, label: 'left assembled arm' },
-      { part: 'arms', x: 0.65, y: 0.53, label: 'right assembled arm' },
+      { part: 'arms', x: 0.4, y: 0.54, label: 'left assembled arm' },
+      { part: 'arms', x: 0.6, y: 0.54, label: 'right assembled arm' },
     ],
     feet: [
-      { part: 'feet', x: 0.43, y: 0.72, label: 'left wheel foot' },
-      { part: 'feet', x: 0.57, y: 0.72, label: 'right wheel foot' },
+      { part: 'feet', x: 0.44, y: 0.65, label: 'left wheel foot' },
+      { part: 'feet', x: 0.56, y: 0.65, label: 'right wheel foot' },
     ],
     details: [{ part: 'details', x: 0.5, y: 0.56, label: 'chest screen/details' }],
     wings: [
@@ -1054,7 +1054,7 @@ function kernelWorkbenchHtml(run, worker) {
     .label { position: absolute; left: 28px; bottom: 20px; color: rgba(24, 91, 129, .28); font-size: 42px; font-weight: 900; font-style: italic; pointer-events: none; }
     .ghost { position: absolute; left: 50%; top: 44%; width: ${isAssembler ? '280px' : '180px'}; height: ${isAssembler ? '260px' : '160px'}; transform: translate(-50%, -50%); border: 3px dashed rgba(22,100,192,.26); border-radius: 12px; display: grid; place-items: center; color: rgba(22,100,192,.58); text-align: center; font-weight: 900; padding: 18px; }
     .ghost, .activity { pointer-events: none; }
-    .ghost::after { content: ""; position: absolute; inset: -3px; border-radius: inherit; border: 3px solid transparent; border-top-color: ${worker.color}; animation: orbit 2.4s linear infinite; }
+    .workspace.has-parts .ghost { display: none; }
     .activity { position: absolute; left: 28px; right: 28px; top: 24px; min-height: 64px; border: 1px solid rgba(22,100,192,.2); border-radius: 8px; background: rgba(255,255,255,.78); overflow: hidden; }
     .activity::before { content: ""; position: absolute; left: -28%; top: 0; width: 28%; height: 100%; background: linear-gradient(90deg, transparent, rgba(22,100,192,.24), transparent); animation: sweep 2.8s linear infinite; }
     .activity-row { position: relative; z-index: 1; display: flex; height: 64px; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; font-weight: 850; }
@@ -1094,7 +1094,6 @@ function kernelWorkbenchHtml(run, worker) {
     pre { max-height: 260px; overflow: auto; background: #101820; color: #dff7ec; font-size: 12px; white-space: pre-wrap; }
     .heartbeat { display: inline-block; width: 10px; height: 10px; margin-right: 7px; border-radius: 50%; background: ${worker.color}; animation: pulse 1.4s infinite ease-in-out; }
     @keyframes pulse { 0%, 100% { opacity: .35; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.12); } }
-    @keyframes orbit { to { transform: rotate(360deg); } }
     @keyframes sweep { to { left: 100%; } }
   </style>
 </head>
@@ -1156,6 +1155,7 @@ function kernelWorkbenchHtml(run, worker) {
 
     resetProject.addEventListener("click", () => {
       for (const placed of [...workspace.querySelectorAll(".placed")]) placed.remove();
+      workspace.classList.remove("has-parts");
       window.demoManifest.parts = [];
       log.textContent = "Project reset. Scene is empty.";
     });
@@ -1172,6 +1172,7 @@ function kernelWorkbenchHtml(run, worker) {
       part.style.top = Math.round(y - offset.y) + "px";
       part.textContent = partLabel(selected);
       workspace.append(part);
+      workspace.classList.add("has-parts");
       window.demoManifest.parts.push({ part: selected, x, y });
       writeLog("Placed " + selected + " at (" + x + ", " + y + ").");
     });
