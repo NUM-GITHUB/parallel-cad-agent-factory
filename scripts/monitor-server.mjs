@@ -11,6 +11,7 @@ const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const publicDir = path.join(rootDir, 'public');
+const tinkercadExperimentDir = path.join(rootDir, 'experiments', 'tinkercad-cua-hackathon');
 const runsRoot = path.join(rootDir, '.lightcone-runs', 'monitor');
 loadEnvFile(path.join(rootDir, '.env.local'));
 loadEnvFile(path.join(rootDir, '.env'));
@@ -73,6 +74,13 @@ function normalizeAgentBackend(value) {
   return 'codex';
 }
 
+function normalizeCadStrategy(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (['direct', 'zero-shot', '0-shot', 'prompt'].includes(normalized)) return 'direct';
+  if (['tutorial', 'tutorial-guided', 'one-shot', '1-shot'].includes(normalized)) return 'tutorial';
+  return 'auto';
+}
+
 function resolveAgentBackend(requestedBackend) {
   if (requestedBackend === 'off') return 'off';
   if (requestedBackend === 'northstar') return northstarClient ? 'northstar' : 'codex';
@@ -94,6 +102,7 @@ async function route(request, response) {
       refreshMs,
       defaultAgentBackend,
       northstarAvailable: Boolean(northstarClient),
+      cadStrategies: ['auto', 'direct', 'tutorial'],
     });
     return;
   }
@@ -117,6 +126,7 @@ async function route(request, response) {
     const run = createRun(body.prompt || '', {
       freshProject,
       agentBackend: body.agentBackend || defaultAgentBackend,
+      cadStrategy: body.cadStrategy || 'auto',
     });
     runs.set(run.id, run);
     bootRun(run).catch((error) => failRun(run, error));
@@ -192,8 +202,9 @@ function createRun(prompt, options = {}) {
 
   const requestedAgentBackend = normalizeAgentBackend(options.agentBackend || defaultAgentBackend);
   const agentBackend = resolveAgentBackend(requestedAgentBackend);
+  const requestedCadStrategy = normalizeCadStrategy(options.cadStrategy || 'auto');
   const agentsEnabled = agentBackend !== 'off';
-  const plan = makePlan(prompt);
+  const plan = makePlan(prompt, { cadStrategy: requestedCadStrategy });
   const workers = [...plan.workers, plan.assembler].map((worker) => ({
     ...worker,
     status: 'queued',
@@ -225,6 +236,9 @@ function createRun(prompt, options = {}) {
     freshProject: options.freshProject !== false,
     requestedAgentBackend,
     agentBackend,
+    requestedCadStrategy,
+    cadStrategy: plan.cadStrategy,
+    tutorialFallback: plan.tutorialFallback,
     cleanup: options.cleanup || null,
     workers,
     createdAt: new Date().toISOString(),
@@ -1056,11 +1070,42 @@ async function kernelStdout(args, options = {}) {
   return output;
 }
 
-function makePlan(rawPrompt) {
+function makePlan(rawPrompt, options = {}) {
   const prompt =
     rawPrompt.trim() ||
     'Design a modular desktop object with a primary module, an upper feature, side attachments, a lower support, and a front detail.';
-  const assetSpecs = buildAssetSpecs(prompt);
+  const requestedCadStrategy = normalizeCadStrategy(options.cadStrategy || 'auto');
+  const tutorialPreset = selectTutorialPreset(prompt);
+  const useTutorial =
+    requestedCadStrategy === 'tutorial' ||
+    (requestedCadStrategy === 'auto' && tutorialPreset);
+  const tutorialNotes = useTutorial && tutorialPreset ? loadTutorialPreset(tutorialPreset) : null;
+  const assetSpecs = tutorialNotes
+    ? buildTutorialAssetSpecs(prompt, tutorialPreset, tutorialNotes)
+    : buildAssetSpecs(prompt);
+  const cadStrategy = tutorialNotes ? 'tutorial' : 'direct';
+  const strategy = tutorialNotes
+    ? 'tutorial-guided-one-shot-cad-agent-factory'
+    : 'zero-shot-parallel-cad-agent-factory';
+  const tutorialFallback = {
+    requested: requestedCadStrategy,
+    active: Boolean(tutorialNotes),
+    reason: tutorialNotes
+      ? `Using tutorial reference "${tutorialNotes.sourceTitle || tutorialPreset.label}" to guide the CAD phase.`
+      : tutorialPreset && requestedCadStrategy !== 'tutorial'
+        ? 'Tutorial strategy was not selected, so the factory is using prompt-only CAD generation.'
+        : requestedCadStrategy === 'tutorial'
+          ? 'No matching tutorial preset was found; falling back to prompt-only CAD generation.'
+          : 'No tutorial preset matched this prompt; using prompt-only CAD generation.',
+    preset: tutorialNotes
+      ? {
+          id: tutorialPreset.id,
+          label: tutorialPreset.label,
+          sourceTitle: tutorialNotes.sourceTitle || tutorialPreset.label,
+          sourceVideo: tutorialNotes.sourceVideo || null,
+        }
+      : null,
+  };
   const workers = assetSpecs.map((spec, index) => ({
     id: spec.id,
     title: `CAD Agent Instance ${String(index + 1).padStart(2, '0')}`,
@@ -1069,7 +1114,7 @@ function makePlan(rawPrompt) {
     assignment: spec.label,
     color: spec.color,
     assetSpec: spec,
-    prompt: `Build only this exported CAD part: "${spec.label}" for the user request "${prompt}". Use the generated part plan below and return an exportable part manifest.
+    prompt: `Build only this exported CAD part: "${spec.label}" for the user request "${prompt}". Use the ${spec.tutorialSource ? 'tutorial-derived' : 'generated'} part plan below and return an exportable part manifest.
 Part plan: ${JSON.stringify({
       id: spec.id,
       label: spec.label,
@@ -1077,21 +1122,30 @@ Part plan: ${JSON.stringify({
       color: spec.color,
       primitives: spec.placements.map((placement) => placement.primitive),
       assemblyAnchor: spec.assemblyAnchor,
+      tutorialSource: spec.tutorialSource || null,
     })}`,
     contract: {
       part: spec.id,
       label: spec.label,
       anchor: spec.role,
       output: 'exported CAD part manifest with geometry, color, and assembly anchor',
+      source: spec.tutorialSource ? 'tutorial-guided' : 'prompt-derived',
     },
   }));
 
   return {
     prompt,
-    strategy: 'agent-factory-one-cad-agent-template-many-prompted-instances',
+    strategy,
+    cadStrategy,
+    requestedCadStrategy,
+    tutorialFallback,
     factory: {
       dispatcher: 'Dispatch & Assembly Agent',
       workerTemplate: 'CAD Agent',
+      cadPhase:
+        cadStrategy === 'tutorial'
+          ? 'one-shot tutorial-guided CAD creation'
+          : 'zero-shot prompt-only CAD creation',
     },
     workers,
     assembler: {
@@ -1101,10 +1155,157 @@ Part plan: ${JSON.stringify({
       template: 'Dispatch & Assembly Agent',
       assignment: 'dispatch and final assembly',
       color: '#182330',
-      prompt: `Dispatch this request into prompt-generated CAD part assets, then assemble the exported manifests for: "${prompt}". Use worker contracts, align anchors, inspect screenshots, and produce the final combined design.`,
+      prompt: `Dispatch this request into ${cadStrategy === 'tutorial' ? 'tutorial-guided' : 'prompt-generated'} CAD part assets, then assemble the exported manifests for: "${prompt}". Use worker contracts, align anchors, inspect screenshots, and produce the final combined design.`,
       contract: { part: 'final assembly', anchor: 'scene', output: 'assembled model and QA screenshot' },
     },
   };
+}
+
+const TUTORIAL_PRESETS = [
+  {
+    id: 'advanced-cat',
+    label: 'Advanced 3D Cat',
+    file: 'advanced_cat_assets/tutorial-notes.json',
+    match: /\b(advanced\s+)?(3d\s+)?cat\b/i,
+  },
+  {
+    id: 'bear-doll',
+    label: 'Bear Doll',
+    file: 'bear_doll_assets/tutorial-notes.json',
+    match: /\b(bear|teddy|bear\s+doll)\b/i,
+  },
+  {
+    id: 'small-cat',
+    label: 'Small 3D Cat',
+    file: 'cat_assets/tutorial-notes.json',
+    match: /\b(small\s+)?(3d\s+)?cat\b/i,
+  },
+  {
+    id: 'fortnite-llama',
+    label: 'Fortnite Llama',
+    file: 'llama_assets/tutorial-notes.json',
+    match: /\b(fortnite\s+)?llama\b/i,
+  },
+];
+
+function selectTutorialPreset(prompt) {
+  const text = String(prompt || '');
+  const advancedCat = TUTORIAL_PRESETS.find((preset) => preset.id === 'advanced-cat');
+  const smallCat = TUTORIAL_PRESETS.find((preset) => preset.id === 'small-cat');
+  if (/\badvanced\b/i.test(text) && advancedCat?.match.test(text)) return advancedCat;
+  if (smallCat?.match.test(text)) return smallCat;
+  return TUTORIAL_PRESETS.find((preset) => preset.match.test(text)) || null;
+}
+
+function loadTutorialPreset(preset) {
+  const filePath = path.join(tinkercadExperimentDir, preset.file);
+  if (!fs.existsSync(filePath)) return null;
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function buildTutorialAssetSpecs(prompt, preset, notes) {
+  const rows = tutorialRows(notes);
+  const usedIds = new Map();
+  return rows.slice(0, 12).map((row, index, list) => {
+    const label = row.label || `${preset.label} step ${index + 1}`;
+    const role = inferPartRole(label, index, list.length);
+    const color = row.color || colorFromText(row.note) || autoColor(index);
+    const id = uniqueId(slugify(label), usedIds);
+    const assemblyAnchor = assemblyAnchorForRole(role, index, list.length);
+    const primitive = normalizeTutorialPrimitive(row.primitive || row.note || label);
+    const placements = buildTutorialPrimitivePlacements({ label, role, primitive });
+    return {
+      id,
+      label,
+      color,
+      role,
+      assemblyAnchor,
+      placements,
+      thumb: {
+        primitive: placements[0]?.primitive || primitive,
+        width: placements[0]?.width,
+        height: placements[0]?.height,
+      },
+      tutorialSource: {
+        presetId: preset.id,
+        sourceTitle: notes.sourceTitle || preset.label,
+        sourceVideo: notes.sourceVideo || null,
+        step: row.step || String(index + 1),
+        time: row.time || null,
+        note: row.note,
+        userPrompt: prompt,
+      },
+    };
+  });
+}
+
+function tutorialRows(notes) {
+  if (Array.isArray(notes.buildPlan)) {
+    return notes.buildPlan.map((item) => ({
+      step: item.stage,
+      label: item.part,
+      primitive: item.primitive,
+      note: [item.dimensions, item.position, item.rotation, item.notes].filter(Boolean).join(' | '),
+    }));
+  }
+
+  if (Array.isArray(notes.primitivePlan)) {
+    return notes.primitivePlan.map((item) => ({
+      step: item[0],
+      label: item[1],
+      primitive: item[2],
+      note: item.filter(Boolean).join(' | '),
+    }));
+  }
+
+  if (Array.isArray(notes.tutorialSteps)) {
+    return notes.tutorialSteps.map((item, index) => ({
+      step: String(index + 1),
+      time: item.time,
+      label: item.title,
+      primitive: item.note,
+      note: item.note,
+    }));
+  }
+
+  if (Array.isArray(notes.modeledFrom)) {
+    return notes.modeledFrom.map((line, index) => {
+      const match = String(line).match(/^(?:(\d\d:\d\d)\s+)?([^:]+):?\s*(.*)$/);
+      return {
+        step: String(index + 1),
+        time: match?.[1] || null,
+        label: cleanPartLabel(match?.[2] || `tutorial step ${index + 1}`),
+        primitive: match?.[3] || line,
+        note: String(line),
+      };
+    });
+  }
+
+  return [];
+}
+
+function normalizeTutorialPrimitive(value) {
+  const text = String(value || '').toLowerCase();
+  if (/\b(sphere|ellipsoid|ball|eye|muzzle|body|head|paw|pad)\b/.test(text)) return 'sphere';
+  if (/\b(cylinder|torus|donut|wheel|leg|arm|neck|rod)\b/.test(text)) return 'cylinder';
+  if (/\b(cone|paraboloid|pyramid|ear|tail|spike)\b/.test(text)) return 'cone';
+  return 'box';
+}
+
+function buildTutorialPrimitivePlacements(spec) {
+  const pair = shouldUsePairedPrimitive(spec.label, spec.role);
+  const points = placementPointsForSpec(spec, pair);
+  return points.map((point, index) => {
+    const size = sizeForPrimitive(spec.primitive, spec.role, pair, spec.label);
+    return {
+      primitive: spec.primitive,
+      x: point.x,
+      y: point.y,
+      width: size.width,
+      height: size.height,
+      label: pair ? `${index === 0 ? 'left' : 'right'} ${spec.label}` : spec.label,
+    };
+  });
 }
 
 function buildAssetSpecs(prompt) {
@@ -1717,6 +1918,9 @@ function serializeRun(run) {
     prompt: run.prompt,
     status: run.status,
     strategy: run.plan.strategy,
+    cadStrategy: run.cadStrategy,
+    requestedCadStrategy: run.requestedCadStrategy,
+    tutorialFallback: run.tutorialFallback,
     factory: run.plan.factory,
     freshProject: run.freshProject,
     agentBackend: run.agentBackend,
