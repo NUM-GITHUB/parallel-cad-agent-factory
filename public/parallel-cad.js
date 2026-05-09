@@ -1,56 +1,34 @@
 const promptInput = document.querySelector("#prompt");
 const runButton = document.querySelector("#runButton");
+const stopButton = document.querySelector("#stopButton");
 const resetButton = document.querySelector("#resetButton");
 const planList = document.querySelector("#planList");
-const workerGrid = document.querySelector("#workerGrid");
+const monitorGrid = document.querySelector("#monitorGrid");
 const manifestEl = document.querySelector("#manifest");
 const plannerStatus = document.querySelector("#plannerStatus");
-const workerStatus = document.querySelector("#workerStatus");
-const assemblyStatus = document.querySelector("#assemblyStatus");
-const speedup = document.querySelector("#speedup");
-const robot = document.querySelector("#robot");
+const monitorStatus = document.querySelector("#monitorStatus");
+const manifestStatus = document.querySelector("#manifestStatus");
+const runIdEl = document.querySelector("#runId");
+const kernelCountEl = document.querySelector("#kernelCount");
+const refreshRateEl = document.querySelector("#refreshRate");
 
-const workerSpecs = [
-  {
-    id: "head",
-    title: "Head worker",
-    shapeClass: "shape-head",
-    summary: "Builds the purple head, eyes, and antenna anchor.",
-    manifest: { part: "head", kernel: "worker-head", size: [104, 74, 34], anchor: [0, 0, 150], color: "purple" },
-  },
-  {
-    id: "body",
-    title: "Body worker",
-    shapeClass: "shape-body",
-    summary: "Builds the green body and cyan status screen.",
-    manifest: { part: "body", kernel: "worker-body", size: [136, 112, 42], anchor: [0, 0, 84], color: "green" },
-  },
-  {
-    id: "arms",
-    title: "Arm worker",
-    shapeClass: "shape-arms",
-    summary: "Builds mirrored orange arms with matching scale.",
-    manifest: { part: "arms", kernel: "worker-arms", size: [210, 22, 22], anchor: [0, 0, 118], color: "orange" },
-  },
-  {
-    id: "feet",
-    title: "Feet worker",
-    shapeClass: "shape-feet",
-    summary: "Builds blue wheel-like feet and alignment anchors.",
-    manifest: { part: "feet", kernel: "worker-feet", size: [150, 32, 32], anchor: [0, 0, 18], color: "blue" },
-  },
-];
+let activeRunId = null;
+let pollTimer = null;
 
 function reset() {
+  clearPoll();
+  activeRunId = null;
+  runButton.disabled = false;
+  stopButton.disabled = true;
+  runIdEl.textContent = "none";
+  kernelCountEl.textContent = "0";
+  refreshRateEl.textContent = "waiting";
   planList.innerHTML = "";
-  workerGrid.innerHTML = "";
-  robot.classList.remove("assembled");
+  monitorGrid.innerHTML = `<div class="empty-state">Start a run to create Kernel computers and monitor their screenshots.</div>`;
   manifestEl.textContent = "{}";
   setStatus(plannerStatus, "idle", "idle");
-  setStatus(workerStatus, "idle", "idle");
-  setStatus(assemblyStatus, "idle", "idle");
-  speedup.textContent = "waiting";
-  runButton.disabled = false;
+  setStatus(monitorStatus, "idle", "idle");
+  setStatus(manifestStatus, "idle", "idle");
 }
 
 function setStatus(el, state, text) {
@@ -58,104 +36,194 @@ function setStatus(el, state, text) {
   el.textContent = text;
 }
 
-function renderWorkers() {
-  workerGrid.innerHTML = workerSpecs
+async function startRun() {
+  runButton.disabled = true;
+  stopButton.disabled = true;
+  setStatus(plannerStatus, "running", "planning");
+  setStatus(monitorStatus, "running", "creating");
+  setStatus(manifestStatus, "running", "pending");
+  monitorGrid.innerHTML = `<div class="empty-state">Creating Kernel sessions...</div>`;
+
+  try {
+    const run = await api("/api/runs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompt: promptInput.value }),
+    });
+    activeRunId = run.id;
+    renderRun(run);
+    startPoll(run.refreshMs);
+  } catch (error) {
+    showError(error);
+    runButton.disabled = false;
+  }
+}
+
+async function stopRun() {
+  if (!activeRunId) return;
+  stopButton.disabled = true;
+  setStatus(monitorStatus, "running", "stopping");
+  try {
+    const run = await api(`/api/runs/${activeRunId}/stop`, { method: "POST" });
+    renderRun(run);
+    clearPoll();
+    runButton.disabled = false;
+  } catch (error) {
+    showError(error);
+  }
+}
+
+function startPoll(refreshMs) {
+  clearPoll();
+  const interval = Math.max(1500, Math.min(refreshMs || 3000, 5000));
+  pollTimer = setInterval(async () => {
+    if (!activeRunId) return;
+    try {
+      const run = await api(`/api/runs/${activeRunId}`);
+      renderRun(run);
+      if (["failed", "stopped"].includes(run.status)) {
+        clearPoll();
+        runButton.disabled = false;
+        stopButton.disabled = true;
+      }
+    } catch (error) {
+      showError(error);
+      clearPoll();
+    }
+  }, interval);
+}
+
+function clearPoll() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = null;
+}
+
+function renderRun(run) {
+  runIdEl.textContent = run.id;
+  kernelCountEl.textContent = String(run.workers.length);
+  refreshRateEl.textContent = `${Math.round(run.refreshMs / 1000)} sec screenshots`;
+  runButton.disabled = !["failed", "stopped"].includes(run.status);
+  stopButton.disabled = ["failed", "stopped"].includes(run.status);
+
+  renderPlan(run);
+  renderMonitor(run);
+  renderManifest(run);
+
+  if (run.status === "failed") {
+    setStatus(plannerStatus, "failed", "failed");
+    setStatus(monitorStatus, "failed", "failed");
+    setStatus(manifestStatus, "failed", "failed");
+  } else if (run.status === "stopped") {
+    setStatus(plannerStatus, "done", "stopped");
+    setStatus(monitorStatus, "done", "stopped");
+    setStatus(manifestStatus, "done", "saved");
+  } else if (run.status === "monitoring") {
+    setStatus(plannerStatus, "done", "planned");
+    setStatus(monitorStatus, "running", "monitoring");
+    setStatus(manifestStatus, "done", "live");
+  } else {
+    setStatus(plannerStatus, "running", "planning");
+    setStatus(monitorStatus, "running", "creating");
+    setStatus(manifestStatus, "running", "pending");
+  }
+}
+
+function renderPlan(run) {
+  const workers = run.plan.workers.concat(run.plan.assembler);
+  planList.innerHTML = workers
     .map(
-      (worker) => `<article class="worker-card" id="worker-${worker.id}">
-        <div class="worker-top">
-          <h3>${worker.title}</h3>
-          <span class="worker-time">queued</span>
-        </div>
-        <div class="worker-stage">
-          <div class="worker-shape ${worker.shapeClass}"></div>
-        </div>
-        <p class="worker-log">${worker.summary}</p>
-      </article>`,
+      (worker) => `<li>
+        <strong>${escapeHtml(worker.title)}:</strong>
+        ${escapeHtml(worker.prompt)}
+      </li>`,
     )
     .join("");
 }
 
-function makePlan(prompt) {
-  const normalized = prompt.trim() || "Make a desktop robot.";
-  return [
-    ["Parse", `Understand request: "${normalized.slice(0, 92)}${normalized.length > 92 ? "..." : ""}"`],
-    ["Decompose", "Split robot into independently buildable head, body, arms, and feet."],
-    ["Parallelize", "Launch one Kernel per part so each computer-use worker manipulates its own CAD workspace."],
-    ["Contract", "Each worker returns a part STL/design URL plus size and anchor metadata."],
-    ["Assemble", "A final Kernel imports the parts, aligns anchors, groups the design, and captures QA screenshots."],
-  ];
+function renderMonitor(run) {
+  monitorGrid.innerHTML = run.workers
+    .map((worker) => {
+      const updated = worker.lastScreenshotAt ? new Date(worker.lastScreenshotAt).toLocaleTimeString() : "waiting";
+      const liveLink = worker.liveViewUrl ? `<a href="${escapeAttr(worker.liveViewUrl)}" target="_blank" rel="noreferrer">live view</a>` : "";
+      const session = worker.sessionId ? `<span>session: ${escapeHtml(worker.sessionId)}</span>` : "<span>session: creating</span>";
+      const error = worker.error ? `<span>error: ${escapeHtml(worker.error)}</span>` : "";
+      return `<article class="kernel-card">
+        <div class="kernel-top">
+          <div class="kernel-title">
+            <h3>${escapeHtml(worker.title)}</h3>
+            <p>${escapeHtml(worker.role)} · ${escapeHtml(worker.id)}</p>
+          </div>
+          <span class="kernel-state ${escapeAttr(worker.status)}">${escapeHtml(worker.status)}</span>
+        </div>
+        <div class="kernel-shot">
+          <img src="${escapeAttr(worker.screenshotUrl)}" alt="${escapeAttr(worker.title)} screenshot">
+        </div>
+        <div class="kernel-meta">
+          <div class="kernel-prompt">${escapeHtml(worker.prompt)}</div>
+          <div>last screenshot: ${escapeHtml(updated)}</div>
+          <div class="kernel-links">${liveLink}${session}${error}</div>
+        </div>
+      </article>`;
+    })
+    .join("");
 }
 
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function runDemo() {
-  runButton.disabled = true;
-  renderWorkers();
-  setStatus(plannerStatus, "running", "planning");
-  setStatus(workerStatus, "idle", "queued");
-  setStatus(assemblyStatus, "idle", "waiting");
-  speedup.textContent = "planning";
-  robot.classList.remove("assembled");
-  manifestEl.textContent = "{}";
-  planList.innerHTML = "";
-
-  for (const [label, detail] of makePlan(promptInput.value)) {
-    await wait(260);
-    const item = document.createElement("li");
-    item.innerHTML = `<strong>${label}:</strong> ${detail}`;
-    planList.append(item);
-  }
-
-  setStatus(plannerStatus, "done", "planned");
-  setStatus(workerStatus, "running", "building");
-  speedup.textContent = "4.0x theoretical";
-
-  await Promise.all(workerSpecs.map((worker, index) => runWorker(worker, index)));
-
-  setStatus(workerStatus, "done", "parts ready");
-  setStatus(assemblyStatus, "running", "assembling");
+function renderManifest(run) {
   manifestEl.textContent = JSON.stringify(
     {
-      prompt: promptInput.value,
-      strategy: "parallel-kernel-computer-use",
-      parts: workerSpecs.map((worker) => worker.manifest),
-      assembler: {
-        kernel: "assembler",
-        action: "align anchors, group, screenshot, export",
-      },
+      runId: run.id,
+      status: run.status,
+      strategy: run.strategy,
+      prompt: run.prompt,
+      kernels: run.workers.map((worker) => ({
+        id: worker.id,
+        role: worker.role,
+        status: worker.status,
+        sessionId: worker.sessionId,
+        liveViewUrl: worker.liveViewUrl,
+        prompt: worker.prompt,
+        contract: worker.contract,
+        lastScreenshotAt: worker.lastScreenshotAt,
+      })),
     },
     null,
     2,
   );
-
-  await wait(650);
-  robot.classList.add("assembled");
-  setStatus(assemblyStatus, "done", "assembled");
-  speedup.textContent = "demo run complete";
-  runButton.disabled = false;
 }
 
-async function runWorker(worker, index) {
-  const card = document.querySelector(`#worker-${worker.id}`);
-  const time = card.querySelector(".worker-time");
-  const log = card.querySelector(".worker-log");
-  await wait(420 + index * 120);
-  card.classList.add("active");
-  time.textContent = "Kernel boot";
-  log.textContent = "Opening CAD workspace in a dedicated Kernel browser.";
-  await wait(580 + index * 160);
-  time.textContent = "Computer use";
-  log.textContent = "Dragging primitives, setting color, and recording checkpoints.";
-  await wait(820 + index * 130);
-  card.classList.remove("active");
-  card.classList.add("finished");
-  time.textContent = "done";
-  log.textContent = `${worker.summary} Manifest returned with size and anchor metadata.`;
+async function api(path, options = {}) {
+  const response = await fetch(path, options);
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || `Request failed: ${response.status}`);
+  }
+  return payload;
 }
 
-runButton.addEventListener("click", runDemo);
+function showError(error) {
+  setStatus(plannerStatus, "failed", "error");
+  setStatus(monitorStatus, "failed", "error");
+  setStatus(manifestStatus, "failed", "error");
+  monitorGrid.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}<br>Run the monitor server with npm run serve.</div>`;
+  manifestEl.textContent = JSON.stringify({ error: error.message }, null, 2);
+  stopButton.disabled = true;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value).replace(/`/g, "&#96;");
+}
+
+runButton.addEventListener("click", startRun);
+stopButton.addEventListener("click", stopRun);
 resetButton.addEventListener("click", reset);
 
 reset();

@@ -31,10 +31,16 @@ This follows the Lightcone + Kernel pattern: Kernel supplies the browser compute
 
 This repo includes two modes:
 
+- `npm run serve`: interactive Kernel monitor UI. Enter a prompt, create the matching Kernel workers, and watch screenshots refresh every few seconds.
 - `npm run demo`: deterministic Kernel baseline. Useful for a reliable recording if network/API latency is bad during judging.
 - `npm run demo:northstar`: intended hackathon architecture. The main planner writes prompts, then each worker and the assembler run separate Northstar + Kernel computer-use loops.
 
-## Run The Local UI
+## Run The Kernel Monitor UI
+
+Requires:
+
+- Kernel CLI installed and authenticated
+- A Kernel account with browser access
 
 ```bash
 npm run serve
@@ -45,6 +51,16 @@ Open:
 ```text
 http://127.0.0.1:8780/parallel-cad.html
 ```
+
+If port `8780` is busy, the server automatically tries the next available port and prints the exact URL.
+
+When you submit a prompt, the local server:
+
+- decomposes the task into worker prompts
+- creates one Kernel browser per worker plus an assembler Kernel
+- opens a visible CAD workbench in each Kernel
+- captures screenshots every few seconds
+- streams each Kernel's latest screenshot and live view URL into the monitor dashboard
 
 ## Run The Baseline Multi-Kernel Demo
 
@@ -105,11 +121,13 @@ http://127.0.0.1:8781/result.html
 
 ```text
 public/
-  parallel-cad.html        Local demo control panel
+  parallel-cad.html        Interactive Kernel monitor UI
   parallel-cad.css         UI styling
-  parallel-cad.js          Planner/worker/assembler simulation UI
+  parallel-cad.js          Dashboard polling and monitor rendering
 
 scripts/
+  monitor-server.mjs       Local API that creates Kernel sessions and refreshes screenshots
+
   parallel-cad-kernel-demo.mjs
                             Deterministic Kernel baseline demo
 

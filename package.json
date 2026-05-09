@@ -5,11 +5,12 @@
   "type": "module",
   "description": "Hackathon MVP: parallel Kernel computer-use agents split and assemble CAD modeling tasks.",
   "scripts": {
-    "serve": "python3 -m http.server 8780 --bind 127.0.0.1 --directory public",
+    "serve": "node scripts/monitor-server.mjs",
+    "serve:static": "python3 -m http.server 8780 --bind 127.0.0.1 --directory public",
     "serve:latest": "python3 -m http.server 8781 --bind 127.0.0.1 --directory demo-results/latest",
     "demo": "node scripts/parallel-cad-kernel-demo.mjs",
     "demo:northstar": "node scripts/northstar-parallel-kernel-demo.mjs",
-    "check": "node --check public/parallel-cad.js && node --check scripts/parallel-cad-kernel-demo.mjs && node --check scripts/northstar-parallel-kernel-demo.mjs"
+    "check": "node --check public/parallel-cad.js && node --check scripts/monitor-server.mjs && node --check scripts/parallel-cad-kernel-demo.mjs && node --check scripts/northstar-parallel-kernel-demo.mjs"
   },
   "dependencies": {
     "@tzafon/lightcone": "^0.14.0"
