@@ -26,10 +26,21 @@
           <button id="resetButton" class="secondary-button" type="button">Reset</button>
         </div>
 
-        <label class="fresh-toggle">
-          <input id="freshProject" type="checkbox" checked>
-          <span>Fresh project</span>
-        </label>
+        <div class="run-options">
+          <label class="fresh-toggle">
+            <input id="freshProject" type="checkbox" checked>
+            <span>Fresh project</span>
+          </label>
+
+          <label class="backend-field" for="agentBackend">
+            <span>Agent backend</span>
+            <select id="agentBackend">
+              <option value="codex" selected>Codex backend</option>
+              <option value="northstar">Northstar</option>
+              <option value="off">Monitor only</option>
+            </select>
+          </label>
+        </div>
 
         <dl class="metrics">
           <div>

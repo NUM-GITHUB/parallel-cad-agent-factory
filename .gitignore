@@ -5,3 +5,4 @@ node_modules/
 .lightcone-runs/
 *.log
 /demo-results/factory-ui-*.png
+/demo-results/codex-backend-*.png

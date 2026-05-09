@@ -3,6 +3,7 @@ const runButton = document.querySelector("#runButton");
 const stopButton = document.querySelector("#stopButton");
 const resetButton = document.querySelector("#resetButton");
 const freshProjectInput = document.querySelector("#freshProject");
+const agentBackendInput = document.querySelector("#agentBackend");
 const planList = document.querySelector("#planList");
 const monitorGrid = document.querySelector("#monitorGrid");
 const manifestEl = document.querySelector("#manifest");
@@ -55,6 +56,7 @@ async function startRun() {
       body: JSON.stringify({
         prompt: promptInput.value,
         stopPrevious: freshProjectInput.checked,
+        agentBackend: agentBackendInput.value,
       }),
     }, 12000);
     activeRunId = run.id;
@@ -190,7 +192,7 @@ function renderMonitor(run) {
         <div class="kernel-top">
           <div class="kernel-title">
             <h3>${escapeHtml(worker.title)}</h3>
-            <p>${escapeHtml(worker.template || worker.role)} · prompt: ${escapeHtml(worker.assignment || worker.id)}</p>
+            <p>${escapeHtml(worker.template || worker.role)} · ${escapeHtml(worker.agentBackend || run.agentBackend || "backend")} · prompt: ${escapeHtml(worker.assignment || worker.id)}</p>
           </div>
           <span class="kernel-state ${escapeAttr(worker.agentStatus || worker.status)}">${escapeHtml(worker.agentStatus || worker.status)}</span>
         </div>
@@ -222,6 +224,8 @@ function renderManifest(run) {
       strategy: run.strategy,
       factory: run.factory,
       freshProject: run.freshProject,
+      agentBackend: run.agentBackend,
+      requestedAgentBackend: run.requestedAgentBackend,
       prompt: run.prompt,
       agentInstances: run.workers.map((worker) => ({
         id: worker.id,
@@ -234,6 +238,7 @@ function renderManifest(run) {
         actionCount: worker.actionCount,
         lastAction: worker.lastAction,
         finalText: worker.finalText,
+        agentBackend: worker.agentBackend,
         sessionId: worker.sessionId,
         liveViewUrl: worker.liveViewUrl,
         screenshotVersion: worker.screenshotVersion,

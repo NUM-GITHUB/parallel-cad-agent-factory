@@ -23,6 +23,9 @@ const refreshMs = Number.parseInt(process.env.MONITOR_REFRESH_MS || '3000', 10);
 const northstarModel = process.env.TZAFON_MODEL || 'tzafon.northstar-cua-fast';
 const northstarWorkerMaxSteps = Number.parseInt(process.env.MONITOR_AGENT_MAX_STEPS || '4', 10);
 const northstarAssemblerMaxSteps = Number.parseInt(process.env.MONITOR_ASSEMBLER_MAX_STEPS || '5', 10);
+const defaultAgentBackend = normalizeAgentBackend(
+  process.env.MONITOR_AGENT_BACKEND || (process.env.MONITOR_AGENT_MODE === 'off' ? 'off' : 'codex'),
+);
 const northstarClient =
   process.env.TZAFON_API_KEY && process.env.MONITOR_AGENT_MODE !== 'off'
     ? new Lightcone({ apiKey: process.env.TZAFON_API_KEY, timeout: 3 * 60 * 1000 })
@@ -63,6 +66,19 @@ function canListen(port) {
   });
 }
 
+function normalizeAgentBackend(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (['northstar', 'tzafon', 'lightcone'].includes(normalized)) return 'northstar';
+  if (['off', 'none', 'monitor'].includes(normalized)) return 'off';
+  return 'codex';
+}
+
+function resolveAgentBackend(requestedBackend) {
+  if (requestedBackend === 'off') return 'off';
+  if (requestedBackend === 'northstar') return northstarClient ? 'northstar' : 'codex';
+  return 'codex';
+}
+
 async function route(request, response) {
   const url = new URL(request.url, `http://127.0.0.1:${activePort}`);
 
@@ -73,7 +89,12 @@ async function route(request, response) {
   }
 
   if (request.method === 'GET' && url.pathname === '/api/health') {
-    sendJson(response, 200, { ok: true, refreshMs });
+    sendJson(response, 200, {
+      ok: true,
+      refreshMs,
+      defaultAgentBackend,
+      northstarAvailable: Boolean(northstarClient),
+    });
     return;
   }
 
@@ -93,7 +114,10 @@ async function route(request, response) {
   if (request.method === 'POST' && url.pathname === '/api/runs') {
     const body = await readJson(request);
     const freshProject = body.stopPrevious !== false;
-    const run = createRun(body.prompt || '', { freshProject });
+    const run = createRun(body.prompt || '', {
+      freshProject,
+      agentBackend: body.agentBackend || defaultAgentBackend,
+    });
     runs.set(run.id, run);
     bootRun(run).catch((error) => failRun(run, error));
     sendJson(response, 202, serializeRun(run));
@@ -166,6 +190,9 @@ function createRun(prompt, options = {}) {
   const screenshotsDir = path.join(dir, 'screenshots');
   fs.mkdirSync(screenshotsDir, { recursive: true });
 
+  const requestedAgentBackend = normalizeAgentBackend(options.agentBackend || defaultAgentBackend);
+  const agentBackend = resolveAgentBackend(requestedAgentBackend);
+  const agentsEnabled = agentBackend !== 'off';
   const plan = makePlan(prompt);
   const workers = [...plan.workers, plan.assembler].map((worker) => ({
     ...worker,
@@ -176,7 +203,8 @@ function createRun(prompt, options = {}) {
     screenshotPath: path.join(screenshotsDir, `${worker.id}.png`),
     lastScreenshotAt: null,
     error: null,
-    agentStatus: northstarClient ? 'queued' : 'disabled',
+    agentStatus: agentsEnabled ? 'queued' : 'disabled',
+    agentBackend,
     agentStep: 0,
     actionCount: 0,
     lastAction: null,
@@ -194,6 +222,8 @@ function createRun(prompt, options = {}) {
     screenshotsDir,
     plan,
     freshProject: options.freshProject !== false,
+    requestedAgentBackend,
+    agentBackend,
     cleanup: options.cleanup || null,
     workers,
     createdAt: new Date().toISOString(),
@@ -229,7 +259,7 @@ async function bootRun(run) {
 
   await Promise.all(run.workers.map((worker) => bootWorker(run, worker)));
 
-  run.status = northstarClient ? 'agents-running' : 'monitoring';
+  run.status = run.agentBackend !== 'off' ? 'agents-running' : 'monitoring';
   touch(run);
   await captureRun(run);
   run.timer = setInterval(() => {
@@ -239,7 +269,7 @@ async function bootRun(run) {
     });
   }, refreshMs);
 
-  if (!northstarClient) {
+  if (run.agentBackend === 'off') {
     for (const worker of run.workers) worker.agentStatus = 'disabled';
     touch(run);
     return;
@@ -250,7 +280,8 @@ async function bootRun(run) {
 
 async function bootWorker(run, worker) {
   worker.status = 'creating-kernel';
-  worker.agentStatus = northstarClient ? 'queued' : 'disabled';
+  worker.agentStatus = run.agentBackend !== 'off' ? 'queued' : 'disabled';
+  worker.agentBackend = run.agentBackend;
   touch(run);
 
   try {
@@ -267,25 +298,14 @@ async function bootWorker(run, worker) {
       'execute',
       worker.sessionId,
       `await page.goto("about:blank", { waitUntil: "domcontentloaded" });
-await page.evaluate(async () => {
-  localStorage.clear();
-  sessionStorage.clear();
-  if (globalThis.caches) {
-    for (const key of await caches.keys()) await caches.delete(key);
-  }
-  if (indexedDB.databases) {
-    for (const database of await indexedDB.databases()) {
-      if (database.name) indexedDB.deleteDatabase(database.name);
-    }
-  }
-  document.body.innerHTML = "";
-});
 await page.setContent(${JSON.stringify(html)}, { waitUntil: "domcontentloaded" });
+await page.waitForSelector("#resetProject", { timeout: 10000 });
 return await page.title();`,
     ]);
 
     worker.status = 'ready';
-    worker.agentStatus = northstarClient ? (isDispatchAssemblyAgent(worker) ? 'waiting' : 'queued') : 'disabled';
+    worker.agentStatus =
+      run.agentBackend !== 'off' ? (isDispatchAssemblyAgent(worker) ? 'waiting' : 'queued') : 'disabled';
     touch(run);
     await captureWorker(worker);
   } catch (error) {
@@ -415,8 +435,12 @@ function failRun(run, error) {
 async function runAgentOrchestration(run) {
   const partWorkers = run.workers.filter((worker) => isCadAgentInstance(worker) && worker.status !== 'failed');
   const assembler = run.workers.find((worker) => isDispatchAssemblyAgent(worker));
+  const runAgent =
+    run.agentBackend === 'northstar'
+      ? (worker) => runNorthstarAgent(run, worker, isDispatchAssemblyAgent(worker) ? northstarAssemblerMaxSteps : northstarWorkerMaxSteps)
+      : (worker) => runCodexAgent(run, worker);
 
-  await Promise.allSettled(partWorkers.map((worker) => runNorthstarAgent(run, worker, northstarWorkerMaxSteps)));
+  await Promise.allSettled(partWorkers.map((worker) => runAgent(worker)));
 
   if (run.status === 'stopped') return;
 
@@ -424,13 +448,168 @@ async function runAgentOrchestration(run) {
     run.status = 'assembling';
     assembler.agentStatus = 'queued';
     touch(run);
-    await runNorthstarAgent(run, assembler, northstarAssemblerMaxSteps);
+    await runAgent(assembler);
   }
 
   if (run.status !== 'stopped' && run.status !== 'failed') {
     run.status = 'complete';
     touch(run);
   }
+}
+
+async function runCodexAgent(run, worker) {
+  worker.agentStatus = 'thinking';
+  worker.agentStartedAt = new Date().toISOString();
+  worker.agentError = null;
+  worker.finalText = '';
+  worker.agentStep = 1;
+  touch(run);
+
+  try {
+    await captureWorker(worker);
+    await clickWorkbenchElement(run, worker, '#resetProject', 'Reset Project');
+    await captureWorker(worker);
+
+    const actions = isDispatchAssemblyAgent(worker) ? codexAssemblyActions(run) : codexPartActions(worker);
+    let step = 2;
+    for (const action of actions) {
+      if (run.status === 'stopped') {
+        worker.agentStatus = 'stopped';
+        return;
+      }
+
+      worker.agentStatus = 'acting';
+      worker.agentStep = step;
+      touch(run);
+
+      const selector = action.part
+        ? `button[data-part="${cssEscape(action.part)}"]`
+        : `button[data-shape="${cssEscape(action.shape)}"]`;
+      await clickWorkbenchElement(run, worker, selector, `select ${action.part || action.shape}`);
+      await clickWorkbenchPoint(run, worker, action.x, action.y, action.label);
+      await captureWorker(worker);
+      step += 1;
+    }
+
+    worker.agentStatus = 'complete';
+    worker.finalText = `Codex backend complete: reset project, built ${worker.assignment} with ${actions.length} placement${actions.length === 1 ? '' : 's'}.`;
+  } catch (error) {
+    worker.agentStatus = 'failed';
+    worker.agentError = error.message;
+    worker.error ||= error.message;
+  } finally {
+    worker.agentFinishedAt = new Date().toISOString();
+    touch(run);
+  }
+}
+
+function codexPartActions(worker) {
+  const plans = {
+    body: [
+      { shape: 'box', x: 0.5, y: 0.55, label: 'green torso block' },
+      { shape: 'box', x: 0.5, y: 0.44, label: 'front chest volume' },
+    ],
+    head: [
+      { shape: 'box', x: 0.5, y: 0.42, label: 'purple head block' },
+      { shape: 'sphere', x: 0.44, y: 0.39, label: 'left face detail' },
+      { shape: 'sphere', x: 0.56, y: 0.39, label: 'right face detail' },
+    ],
+    arms: [
+      { shape: 'cylinder', x: 0.35, y: 0.52, label: 'left orange arm' },
+      { shape: 'cylinder', x: 0.65, y: 0.52, label: 'right orange arm' },
+    ],
+    feet: [
+      { shape: 'cylinder', x: 0.42, y: 0.68, label: 'left blue wheel foot' },
+      { shape: 'cylinder', x: 0.58, y: 0.68, label: 'right blue wheel foot' },
+    ],
+    details: [
+      { shape: 'box', x: 0.5, y: 0.54, label: 'small chest screen' },
+      { shape: 'sphere', x: 0.45, y: 0.47, label: 'left button' },
+      { shape: 'sphere', x: 0.55, y: 0.47, label: 'right button' },
+    ],
+    wings: [
+      { shape: 'cone', x: 0.35, y: 0.52, label: 'left wing' },
+      { shape: 'cone', x: 0.65, y: 0.52, label: 'right wing' },
+    ],
+  };
+  return plans[worker.id] || [{ shape: 'box', x: 0.5, y: 0.5, label: worker.assignment || worker.id }];
+}
+
+function codexAssemblyActions(run) {
+  const actionByPart = {
+    body: [{ part: 'body', x: 0.5, y: 0.56, label: 'assembled body' }],
+    head: [{ part: 'head', x: 0.5, y: 0.38, label: 'assembled head' }],
+    arms: [
+      { part: 'arms', x: 0.35, y: 0.53, label: 'left assembled arm' },
+      { part: 'arms', x: 0.65, y: 0.53, label: 'right assembled arm' },
+    ],
+    feet: [
+      { part: 'feet', x: 0.43, y: 0.72, label: 'left wheel foot' },
+      { part: 'feet', x: 0.57, y: 0.72, label: 'right wheel foot' },
+    ],
+    details: [{ part: 'details', x: 0.5, y: 0.56, label: 'chest screen/details' }],
+    wings: [
+      { part: 'wings', x: 0.28, y: 0.48, label: 'left wing' },
+      { part: 'wings', x: 0.72, y: 0.48, label: 'right wing' },
+    ],
+  };
+  return run.plan.workers.flatMap((worker) => actionByPart[worker.id] || [{ part: worker.id, x: 0.5, y: 0.5, label: worker.assignment }]);
+}
+
+async function clickWorkbenchElement(run, worker, selector, label) {
+  const point = await playwrightResult(
+    worker.sessionId,
+    `const point = await page.evaluate((selector) => {
+  const element = document.querySelector(selector);
+  if (!element) throw new Error("Missing element: " + selector);
+  const rect = element.getBoundingClientRect();
+  return {
+    x: Math.round(rect.left + rect.width / 2),
+    y: Math.round(rect.top + rect.height / 2),
+  };
+}, ${JSON.stringify(selector)});
+const { x, y } = point;
+await page.mouse.click(x, y);
+return { x, y };`,
+  );
+  recordCodexAction(run, worker, `codex click ${label} at (${point.x}, ${point.y})`);
+  await wait(250);
+}
+
+async function clickWorkbenchPoint(run, worker, xRatio, yRatio, label) {
+  const point = await playwrightResult(
+    worker.sessionId,
+    `const point = await page.evaluate(({ xRatio, yRatio }) => {
+  const workspace = document.querySelector("#workspace");
+  if (!workspace) throw new Error("Missing workspace");
+  const rect = workspace.getBoundingClientRect();
+  return {
+    x: Math.round(rect.left + rect.width * xRatio),
+    y: Math.round(rect.top + rect.height * yRatio),
+  };
+}, { xRatio: ${Number(xRatio)}, yRatio: ${Number(yRatio)} });
+const { x, y } = point;
+await page.mouse.click(x, y);
+return { x, y };`,
+  );
+  recordCodexAction(run, worker, `codex place ${label} at (${point.x}, ${point.y})`);
+  await wait(350);
+}
+
+function recordCodexAction(run, worker, text) {
+  worker.actionCount += 1;
+  worker.lastAction = text;
+  touch(run);
+}
+
+async function playwrightResult(sessionId, code) {
+  return extractCliResultString(
+    await kernelStdout(['browsers', 'playwright', 'execute', sessionId, code]),
+  );
+}
+
+function cssEscape(value) {
+  return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
 async function runNorthstarAgent(run, worker, maxSteps) {
@@ -695,7 +874,13 @@ async function kernelStdout(args, options = {}) {
     maxBuffer: 20 * 1024 * 1024,
     timeout: options.timeoutMs || 0,
   });
-  return stdout.trim();
+  const output = stdout.trim();
+  const plain = stripAnsi(output);
+  if (/Success\s*\|\s*false/.test(plain)) {
+    const stderr = plain.match(/stderr:\s*\n([\s\S]*)$/)?.[1]?.trim();
+    throw new Error(stderr || plain.slice(0, 700));
+  }
+  return output;
 }
 
 function makePlan(rawPrompt) {
@@ -1080,6 +1265,8 @@ function serializeRun(run) {
     strategy: run.plan.strategy,
     factory: run.plan.factory,
     freshProject: run.freshProject,
+    agentBackend: run.agentBackend,
+    requestedAgentBackend: run.requestedAgentBackend,
     cleanup: run.cleanup,
     refreshMs,
     createdAt: run.createdAt,
@@ -1125,6 +1312,7 @@ function serializeRun(run) {
       screenshotVersion: worker.screenshotVersion,
       lastScreenshotAt: worker.lastScreenshotAt,
       error: worker.error,
+      agentBackend: worker.agentBackend,
       agentStatus: worker.agentStatus,
       agentStep: worker.agentStep,
       actionCount: worker.actionCount,

@@ -18,11 +18,12 @@ The Dispatch & Assembly Agent creates prompts such as:
 
 All of those workers are the **same CAD Agent**. The only thing that changes is the prompt and the Kernel computer assigned to that instance. After the CAD Agent instances return manifests/screenshots, the Dispatch & Assembly Agent runs the final assembly step.
 
-This follows the Lightcone + Kernel pattern: Kernel supplies the browser computer, Lightcone/Northstar decides the next computer action from screenshots, then the loop executes that action and sends back the next screenshot.
+The monitor supports two execution backends. The default **Codex backend** creates deterministic CAD action plans and executes them through Kernel mouse clicks, which makes the hackathon demo reliable. **Northstar** remains available as a selectable backend for model-computer-use comparison.
 
 ## Demo Modes
 
-- `npm run serve`: interactive Agent Factory monitor UI. Enter a prompt, create copied CAD Agent instances, and watch screenshots/status refresh.
+- `npm run serve`: interactive Agent Factory monitor UI. Defaults to the reliable Codex backend.
+- `npm run serve:northstar`: same monitor UI, but defaulting to Northstar/Lightcone.
 - `npm run demo`: deterministic Kernel baseline. Useful for a reliable recording if network/API latency is bad during judging.
 - `npm run demo:northstar`: script version of the Northstar + Kernel architecture.
 
@@ -32,7 +33,7 @@ Requires:
 
 - Kernel CLI installed and authenticated
 - A Kernel account with browser access
-- `TZAFON_API_KEY` set in the environment or in `.env.local`
+- `TZAFON_API_KEY` set in the environment or in `.env.local` only if you want the Northstar backend
 
 ```bash
 npm run serve
@@ -50,13 +51,13 @@ When you submit a prompt, the local server:
 
 - decomposes the task into part-specific prompts
 - creates one Kernel browser per copied CAD Agent instance plus one Dispatch & Assembly Agent Kernel
-- switches the dashboard to the newest run without stopping older runs
+- clears the previous project by default, then switches the dashboard to the newest run
 - opens a visible MiniCAD workbench in each Kernel
-- starts one Northstar computer-use loop per CAD Agent instance
+- starts either the Codex backend controller or the Northstar computer-use loop for each CAD Agent instance
 - runs the CAD Agent instances in parallel, then runs the Dispatch & Assembly Agent
 - streams screenshots, live view URLs, agent status, action count, and last action into the monitor dashboard
 
-Set `MONITOR_AGENT_MODE=off` to use the UI as a screenshot-only Kernel monitor without Northstar agent loops.
+Use the UI's **Agent backend** selector to switch between `Codex backend`, `Northstar`, and `Monitor only`. You can also set `MONITOR_AGENT_BACKEND=codex`, `MONITOR_AGENT_BACKEND=northstar`, or `MONITOR_AGENT_BACKEND=off`.
 
 ## Run The Baseline Multi-Kernel Demo
 
@@ -79,7 +80,7 @@ public/
   parallel-cad.js          Dashboard polling and monitor rendering
 
 scripts/
-  monitor-server.mjs       Local API that creates Kernel sessions and Northstar loops
+  monitor-server.mjs       Local API that creates Kernel sessions and agent backend loops
   parallel-cad-kernel-demo.mjs
                             Deterministic Kernel baseline demo
   northstar-parallel-kernel-demo.mjs

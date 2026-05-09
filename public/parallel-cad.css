@@ -138,12 +138,17 @@ a:focus-visible {
   flex-wrap: wrap;
 }
 
+.run-options {
+  display: grid;
+  gap: 10px;
+  margin: -4px 0 16px;
+}
+
 .fresh-toggle {
   display: flex;
   width: fit-content;
   align-items: center;
   gap: 8px;
-  margin: -4px 0 16px;
   color: #344455;
   font-size: 13px;
   font-weight: 850;
@@ -153,6 +158,26 @@ a:focus-visible {
   width: 18px;
   height: 18px;
   accent-color: var(--blue);
+}
+
+.backend-field {
+  display: grid;
+  gap: 6px;
+  color: #344455;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid #cfdae5;
+  border-radius: 7px;
+  padding: 0 10px;
+  color: var(--ink);
+  background: #fbfdff;
+  font: inherit;
+  font-weight: 750;
 }
 
 button {
