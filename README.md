@@ -8,13 +8,7 @@ User prompt:
 
 > Make a cute desktop robot with a purple head, green body, orange arms, blue wheel feet, and a small chest screen.
 
-The Dispatch & Assembly Agent creates prompts such as:
-
-- CAD Agent instance 01: build only the body
-- CAD Agent instance 02: build only the head
-- CAD Agent instance 03: build only the arms
-- CAD Agent instance 04: build only the feet
-- CAD Agent instance 05: build only details/accessories
+The Dispatch & Assembly Agent parses the prompt into exported part assets. For the example above it discovers parts such as `head`, `body`, `arms`, `wheel-feet`, and `chest-screen`; for a different prompt it creates a different part list. There is no fixed body/head/arms pipeline in the monitor server.
 
 All of those workers are the **same CAD Agent**. The only thing that changes is the prompt and the Kernel computer assigned to that instance. After the CAD Agent instances return manifests/screenshots, the Dispatch & Assembly Agent runs the final assembly step.
 
@@ -49,12 +43,12 @@ If port `8780` is busy, the server automatically tries the next available port a
 
 When you submit a prompt, the local server:
 
-- decomposes the task into part-specific prompts
+- decomposes the task into prompt-derived part assets
 - creates one Kernel browser per copied CAD Agent instance plus one Dispatch & Assembly Agent Kernel
 - clears the previous project by default, then switches the dashboard to the newest run
 - opens a visible MiniCAD workbench in each Kernel
 - starts either the Codex backend controller or the Northstar computer-use loop for each CAD Agent instance
-- runs the CAD Agent instances in parallel, then runs the Dispatch & Assembly Agent
+- runs the CAD Agent instances in parallel, then imports their exported manifests as placeable parts for the Dispatch & Assembly Agent
 - streams screenshots, live view URLs, agent status, action count, and last action into the monitor dashboard
 
 Use the UI's **Agent backend** selector to switch between `Codex backend`, `Northstar`, and `Monitor only`. You can also set `MONITOR_AGENT_BACKEND=codex`, `MONITOR_AGENT_BACKEND=northstar`, or `MONITOR_AGENT_BACKEND=off`.

@@ -491,7 +491,7 @@ async function runCodexAgent(run, worker) {
         ? `button[data-part="${cssEscape(action.part)}"]`
         : `button[data-shape="${cssEscape(action.shape)}"]`;
       await clickWorkbenchElement(run, worker, selector, `select ${action.part || action.shape}`);
-      await clickWorkbenchPoint(run, worker, action.x, action.y, action.label);
+      await clickWorkbenchPoint(run, worker, action.x, action.y, action.label, action);
       await captureWorker(worker);
       step += 1;
     }
@@ -501,7 +501,7 @@ async function runCodexAgent(run, worker) {
       ? buildAssemblyManifest(run, worker, actions)
       : buildPartManifest(worker, actions);
     worker.finalText = isDispatchAssemblyAgent(worker)
-      ? `Codex backend complete: imported ${worker.partManifest.sources.length} CAD Agent manifests and assembled ${worker.partManifest.placements.length} source primitives.`
+      ? `Codex backend complete: placed ${worker.partManifest.components.length} exported CAD parts containing ${worker.partManifest.placements.length} source primitives.`
       : `Codex backend complete: exported ${worker.partManifest.id} with ${actions.length} placement${actions.length === 1 ? '' : 's'}.`;
   } catch (error) {
     worker.agentStatus = 'failed';
@@ -514,34 +514,16 @@ async function runCodexAgent(run, worker) {
 }
 
 function codexPartActions(worker) {
-  const plans = {
-    body: [
-      { shape: 'box', x: 0.5, y: 0.55, label: 'green rounded torso block' },
-    ],
-    head: [
-      { shape: 'box', x: 0.5, y: 0.42, label: 'purple head block' },
-      { shape: 'sphere', x: 0.44, y: 0.39, label: 'left head sensor' },
-      { shape: 'sphere', x: 0.56, y: 0.39, label: 'right head sensor' },
-    ],
-    arms: [
-      { shape: 'cylinder', x: 0.35, y: 0.52, label: 'left orange arm' },
-      { shape: 'cylinder', x: 0.65, y: 0.52, label: 'right orange arm' },
-    ],
-    feet: [
-      { shape: 'cylinder', x: 0.42, y: 0.68, label: 'left blue wheel foot' },
-      { shape: 'cylinder', x: 0.58, y: 0.68, label: 'right blue wheel foot' },
-    ],
-    details: [
-      { shape: 'box', x: 0.5, y: 0.54, label: 'small chest screen' },
-      { shape: 'sphere', x: 0.45, y: 0.47, label: 'left button' },
-      { shape: 'sphere', x: 0.55, y: 0.47, label: 'right button' },
-    ],
-    wings: [
-      { shape: 'cone', x: 0.35, y: 0.52, label: 'left wing' },
-      { shape: 'cone', x: 0.65, y: 0.52, label: 'right wing' },
-    ],
-  };
-  return plans[worker.id] || [{ shape: 'box', x: 0.5, y: 0.5, label: worker.assignment || worker.id }];
+  return (worker.assetSpec?.placements || []).map((placement) => ({
+    shape: placement.primitive,
+    x: placement.x,
+    y: placement.y,
+    width: placement.width,
+    height: placement.height,
+    role: worker.assetSpec?.role,
+    label: placement.label,
+    color: worker.color,
+  }));
 }
 
 function buildPartManifest(worker, actions) {
@@ -551,14 +533,20 @@ function buildPartManifest(worker, actions) {
     sourceWorkerTitle: worker.title,
     template: worker.template,
     part: worker.id,
+    label: worker.assetSpec?.label || worker.assignment,
+    role: worker.assetSpec?.role || 'module',
     assignment: worker.assignment,
     color: worker.color,
+    assemblyAnchor: worker.assetSpec?.assemblyAnchor || { x: 0.5, y: 0.5 },
+    thumb: worker.assetSpec?.thumb || { primitive: actions[0]?.shape || 'box' },
     contract: worker.contract,
     placements: actions.map((action, index) => ({
       id: `${worker.id}-${index + 1}`,
       primitive: action.shape,
       label: action.label,
       color: action.color || worker.color,
+      width: action.width,
+      height: action.height,
       x: action.x,
       y: action.y,
     })),
@@ -568,6 +556,20 @@ function buildPartManifest(worker, actions) {
 
 function buildAssemblyManifest(run, worker, actions) {
   const sources = run.workers.filter((item) => isCadAgentInstance(item)).map((item) => item.partManifest).filter(Boolean);
+  const components = actions.map((action, index) => {
+    const source = sources.find((item) => item.id === action.sourceManifestId);
+    return {
+      id: `component-${index + 1}`,
+      importedFrom: action.sourceManifestId,
+      sourceWorkerId: action.sourceWorkerId,
+      sourceWorkerTitle: action.sourceWorkerTitle,
+      part: action.part,
+      label: action.label,
+      x: action.x,
+      y: action.y,
+      sourcePrimitiveCount: source?.placements?.length || 0,
+    };
+  });
   const placements = actions.flatMap((action, actionIndex) => {
     const source = sources.find((item) => item.id === action.sourceManifestId);
     if (!source?.placements?.length) {
@@ -580,6 +582,8 @@ function buildAssemblyManifest(run, worker, actions) {
           primitive: action.part,
           label: action.label,
           color: source?.color || action.color,
+          width: source?.thumb?.width || action.width,
+          height: source?.thumb?.height || action.height,
           x: action.x,
           y: action.y,
         },
@@ -595,6 +599,8 @@ function buildAssemblyManifest(run, worker, actions) {
       primitive: placement.primitive,
       label: placement.label,
       color: placement.color,
+      width: placement.width,
+      height: placement.height,
       x: placement.x,
       y: placement.y,
     }));
@@ -607,6 +613,7 @@ function buildAssemblyManifest(run, worker, actions) {
     template: worker.template,
     part: 'final assembly',
     assignment: worker.assignment,
+    components,
     sources: sources.map((source) => ({
       id: source.id,
       sourceWorkerId: source.sourceWorkerId,
@@ -628,32 +635,21 @@ function codexAssemblyActions(run) {
         sourceWorkerId: worker.id,
         sourceWorkerTitle: worker.title,
         part: worker.id,
+        assemblyAnchor: worker.assetSpec?.assemblyAnchor || { x: 0.5, y: 0.5 },
       }));
 
   return sourcePlans.map((source) => {
-    const anchor = assemblyAnchorForPart(source.part);
+    const anchor = source.assemblyAnchor || { x: 0.5, y: 0.5 };
     return {
       part: source.part,
       x: anchor.x,
       y: anchor.y,
-      label: `import ${source.part} geometry`,
+      label: `exported ${source.id}`,
       sourceManifestId: source.id,
       sourceWorkerId: source.sourceWorkerId,
       sourceWorkerTitle: source.sourceWorkerTitle,
     };
   });
-}
-
-function assemblyAnchorForPart(part) {
-  const anchors = {
-    body: { x: 0.5, y: 0.56 },
-    head: { x: 0.5, y: 0.4 },
-    arms: { x: 0.5, y: 0.55 },
-    feet: { x: 0.5, y: 0.68 },
-    details: { x: 0.5, y: 0.56 },
-    wings: { x: 0.5, y: 0.5 },
-  };
-  return anchors[part] || { x: 0.5, y: 0.5 };
 }
 
 function transformSourcePlacements(source, action, scale = 0.62) {
@@ -663,6 +659,8 @@ function transformSourcePlacements(source, action, scale = 0.62) {
     primitive: placement.primitive,
     label: placement.label,
     color: placement.color || source.color,
+    width: placement.width,
+    height: placement.height,
     x: roundRatio(action.x + (placement.x - bounds.centerX) * scale),
     y: roundRatio(action.y + (placement.y - bounds.centerY) * scale),
   }));
@@ -687,16 +685,46 @@ async function syncAssemblyInputs(run, worker) {
   await playwrightExecute(
     worker.sessionId,
     `await page.evaluate((manifests) => {
-  window.importedManifests = manifests;
+  const tools = document.querySelector("#importedPartTools");
+  if (tools) {
+    tools.dataset.manifests = JSON.stringify(manifests);
+    tools.textContent = "";
+    for (const manifest of manifests) {
+      const button = document.createElement("button");
+      button.className = "tool imported-part";
+      button.type = "button";
+      button.dataset.part = manifest.part;
+      button.dataset.manifestId = manifest.id;
+      button.setAttribute("aria-label", manifest.id + " exported part");
+
+      const thumb = document.createElement("span");
+      thumb.className = "thumb " + (manifest.thumb?.primitive || manifest.placements?.[0]?.primitive || "box");
+      thumb.style.background = manifest.color || "#607080";
+
+      const title = document.createElement("span");
+      title.textContent = manifest.label || manifest.part;
+
+      const meta = document.createElement("span");
+      meta.className = "asset-meta";
+      meta.textContent = manifest.sourceWorkerTitle + " · " + (manifest.placements?.length || 0) + " primitives";
+
+      const assetId = document.createElement("span");
+      assetId.className = "asset-id";
+      assetId.textContent = manifest.id;
+
+      button.append(thumb, title, meta, assetId);
+      tools.append(button);
+    }
+  }
   const imported = document.querySelector("#importedOutputs");
   if (imported) imported.textContent = JSON.stringify(manifests, null, 2);
   const log = document.querySelector("#log");
   if (log) {
-    log.textContent = "Project reset. Scene is empty.\\nImported " + manifests.length + " CAD Agent output manifests.";
+    log.textContent = "Project reset. Scene is empty.\\nImported " + manifests.length + " exported CAD parts.";
   }
 }, ${JSON.stringify(manifests)});`,
   );
-  recordCodexAction(run, worker, `codex imported ${manifests.length} CAD Agent manifests`);
+  recordCodexAction(run, worker, `codex imported ${manifests.length} exported CAD parts`);
 }
 
 async function clickWorkbenchElement(run, worker, selector, label) {
@@ -719,7 +747,13 @@ return { x, y };`,
   await wait(250);
 }
 
-async function clickWorkbenchPoint(run, worker, xRatio, yRatio, label) {
+async function clickWorkbenchPoint(run, worker, xRatio, yRatio, label, placement = null) {
+  if (placement) {
+    await playwrightExecute(
+      worker.sessionId,
+      `await page.evaluate((placement) => { window.nextPlacementStyle = placement; }, ${JSON.stringify(placement)});`,
+    );
+  }
   const point = await playwrightResult(
     worker.sessionId,
     `const point = await page.evaluate(({ xRatio, yRatio }) => {
@@ -887,11 +921,11 @@ ${JSON.stringify(run.plan.workers.map((item) => item.contract), null, 2)}
 
 Use the visible MiniCAD UI directly:
 1. Click Reset Project once before doing anything else, even if the project appears empty.
-2. Click one tile in the Assembly Parts palette.
-3. Click the workplane where that robot part should go.
-4. Repeat for body, head, arms, feet, and details.
+2. Click one tile in the Imported Parts palette.
+3. Click the workplane where that exported part asset should go.
+4. Repeat for every imported part shown in the palette.
 
-Do not ask the main agent for coordinates. Do not rely on hidden scripts. Use one computer action at a time. When the final robot is represented, answer with a short sentence containing the word "complete".`;
+Do not ask the main agent for coordinates. Do not rely on hidden scripts. Use one computer action at a time. When the final object is represented, answer with a short sentence containing the word "complete".`;
   }
 
   return `${worker.prompt}
@@ -1027,91 +1061,34 @@ async function kernelStdout(args, options = {}) {
 }
 
 function makePlan(rawPrompt) {
-  const prompt = rawPrompt.trim() || 'Make a cute desktop robot with a purple head, green body, orange arms, blue wheel feet, and a small chest screen.';
-  const lower = prompt.toLowerCase();
-  const workers = [];
-
-  add(workers, {
-    id: 'body',
-    title: 'CAD Agent Instance 01',
+  const prompt =
+    rawPrompt.trim() ||
+    'Design a modular desktop object with a primary module, an upper feature, side attachments, a lower support, and a front detail.';
+  const assetSpecs = buildAssetSpecs(prompt);
+  const workers = assetSpecs.map((spec, index) => ({
+    id: spec.id,
+    title: `CAD Agent Instance ${String(index + 1).padStart(2, '0')}`,
     role: 'cad-agent',
     template: 'CAD Agent',
-    assignment: 'body',
-    color: '#2f9e59',
-    prompt: `Build only the core body/torso for this object: "${prompt}". Return dimensions, color, and anchor points.`,
-    contract: { part: 'body', anchor: 'center', output: 'body geometry and anchors' },
-  });
-
-  if (mentions(lower, ['robot', 'head', 'face', 'eyes', 'antenna'])) {
-    add(workers, {
-      id: 'head',
-      title: `CAD Agent Instance ${String(workers.length + 1).padStart(2, '0')}`,
-      role: 'cad-agent',
-      template: 'CAD Agent',
-      assignment: 'head',
-      color: '#6842b9',
-      prompt: `Build only the head/face module for this object: "${prompt}". Include visible face details if requested.`,
-      contract: { part: 'head', anchor: 'top of body', output: 'head geometry and anchors' },
-    });
-  }
-
-  if (mentions(lower, ['arm', 'arms', 'hand', 'hands', 'claw', 'claws'])) {
-    add(workers, {
-      id: 'arms',
-      title: `CAD Agent Instance ${String(workers.length + 1).padStart(2, '0')}`,
-      role: 'cad-agent',
-      template: 'CAD Agent',
-      assignment: 'arms',
-      color: '#ed7a22',
-      prompt: `Build only the left and right arm modules for this object: "${prompt}". Keep symmetry and connector anchors.`,
-      contract: { part: 'arms', anchor: 'left and right body sides', output: 'arm geometry and anchors' },
-    });
-  }
-
-  if (mentions(lower, ['foot', 'feet', 'leg', 'legs', 'wheel', 'wheels', 'base'])) {
-    add(workers, {
-      id: 'feet',
-      title: `CAD Agent Instance ${String(workers.length + 1).padStart(2, '0')}`,
-      role: 'cad-agent',
-      template: 'CAD Agent',
-      assignment: 'feet',
-      color: '#1664c0',
-      prompt: `Build only the feet/base/wheels for this object: "${prompt}". Return bottom anchors for assembly.`,
-      contract: { part: 'feet', anchor: 'bottom of body', output: 'feet geometry and anchors' },
-    });
-  }
-
-  if (mentions(lower, ['wing', 'wings', 'fin', 'fins'])) {
-    add(workers, {
-      id: 'wings',
-      title: `CAD Agent Instance ${String(workers.length + 1).padStart(2, '0')}`,
-      role: 'cad-agent',
-      template: 'CAD Agent',
-      assignment: 'wings',
-      color: '#38b6d8',
-      prompt: `Build only the wing/fin modules for this object: "${prompt}". Return left/right anchors.`,
-      contract: { part: 'wings', anchor: 'side of body', output: 'wing geometry and anchors' },
-    });
-  }
-
-  if (mentions(lower, ['screen', 'button', 'panel', 'antenna', 'hat', 'sensor', 'accessory'])) {
-    add(workers, {
-      id: 'details',
-      title: `CAD Agent Instance ${String(workers.length + 1).padStart(2, '0')}`,
-      role: 'cad-agent',
-      template: 'CAD Agent',
-      assignment: 'details',
-      color: '#e7b32b',
-      prompt: `Build only the decorative/details module for this object: "${prompt}". Focus on screens, buttons, antennas, sensors, or accessories.`,
-      contract: { part: 'details', anchor: 'front/top detail anchors', output: 'detail geometry and anchors' },
-    });
-  }
-
-  while (workers.length < 4) {
-    const id = ['head', 'arms', 'feet', 'details'].find((candidate) => !workers.some((worker) => worker.id === candidate));
-    const fallback = fallbackWorker(id, prompt, workers.length + 1);
-    add(workers, fallback);
-  }
+    assignment: spec.label,
+    color: spec.color,
+    assetSpec: spec,
+    prompt: `Build only this exported CAD part: "${spec.label}" for the user request "${prompt}". Use the generated part plan below and return an exportable part manifest.
+Part plan: ${JSON.stringify({
+      id: spec.id,
+      label: spec.label,
+      role: spec.role,
+      color: spec.color,
+      primitives: spec.placements.map((placement) => placement.primitive),
+      assemblyAnchor: spec.assemblyAnchor,
+    })}`,
+    contract: {
+      part: spec.id,
+      label: spec.label,
+      anchor: spec.role,
+      output: 'exported CAD part manifest with geometry, color, and assembly anchor',
+    },
+  }));
 
   return {
     prompt,
@@ -1128,38 +1105,208 @@ function makePlan(rawPrompt) {
       template: 'Dispatch & Assembly Agent',
       assignment: 'dispatch and final assembly',
       color: '#182330',
-      prompt: `Dispatch this request into part-specific prompts for copied CAD Agent instances, then assemble the final model for: "${prompt}". Use worker contracts, align anchors, inspect screenshots, and produce the final combined design.`,
+      prompt: `Dispatch this request into prompt-generated CAD part assets, then assemble the exported manifests for: "${prompt}". Use worker contracts, align anchors, inspect screenshots, and produce the final combined design.`,
       contract: { part: 'final assembly', anchor: 'scene', output: 'assembled model and QA screenshot' },
     },
   };
 }
 
-function add(workers, worker) {
-  if (!workers.some((item) => item.id === worker.id)) workers.push(worker);
+function buildAssetSpecs(prompt) {
+  const descriptors = extractPartDescriptors(prompt);
+  const sourceDescriptors = descriptors.length ? descriptors : fallbackPartDescriptors(prompt);
+  const usedIds = new Map();
+  return sourceDescriptors.slice(0, 6).map((descriptor, index, list) => {
+    const label = descriptor.label || `module ${index + 1}`;
+    const role = inferPartRole(label, index, list.length);
+    const color = descriptor.color || autoColor(index);
+    const id = uniqueId(slugify(label), usedIds);
+    const assemblyAnchor = assemblyAnchorForRole(role, index, list.length);
+    const placements = buildPrimitivePlacements({ label, role, color });
+    return {
+      id,
+      label,
+      color,
+      role,
+      assemblyAnchor,
+      placements,
+      thumb: {
+        primitive: placements[0]?.primitive || 'box',
+        width: placements[0]?.width,
+        height: placements[0]?.height,
+      },
+    };
+  });
 }
 
-function fallbackWorker(id, prompt, instanceNumber) {
-  const specs = {
-    head: ['#6842b9', 'Build the top/head or front-facing identity module.'],
-    arms: ['#ed7a22', 'Build side attachments or manipulator modules.'],
-    feet: ['#1664c0', 'Build the bottom supports, base, wheels, or legs.'],
-    details: ['#e7b32b', 'Build decorative details, controls, lights, panels, or sensors.'],
-  };
-  const [color, instruction] = specs[id];
-  return {
-    id,
-    title: `CAD Agent Instance ${String(instanceNumber).padStart(2, '0')}`,
-    role: 'cad-agent',
-    template: 'CAD Agent',
-    assignment: id,
-    color,
-    prompt: `${instruction} User request: "${prompt}". Return geometry, dimensions, and anchor metadata.`,
-    contract: { part: id, anchor: 'auto', output: `${id} geometry and anchors` },
-  };
+function extractPartDescriptors(prompt) {
+  const afterWith = prompt.match(/\bwith\b([\s\S]*)/i)?.[1] || prompt;
+  return afterWith
+    .replace(/\b(and|plus|along with)\b/gi, ',')
+    .split(/[,;.]+/)
+    .map((segment) => partDescriptorFromSegment(segment))
+    .filter((descriptor) => descriptor.label && descriptor.label.length > 1);
 }
 
-function mentions(text, words) {
-  return words.some((word) => text.includes(word));
+function partDescriptorFromSegment(segment) {
+  const color = colorFromText(segment);
+  const withoutColor = removeColorWords(segment);
+  const label = cleanPartLabel(withoutColor || segment);
+  return { label, color };
+}
+
+function fallbackPartDescriptors(prompt) {
+  const objectName = cleanPartLabel(prompt).split(/\s+/).slice(-2).join(' ') || 'object';
+  return [
+    { label: `${objectName} primary module`, color: autoColor(0) },
+    { label: `${objectName} support module`, color: autoColor(1) },
+    { label: `${objectName} detail module`, color: autoColor(2) },
+  ];
+}
+
+function cleanPartLabel(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/["'()]/g, ' ')
+    .replace(/\b(make|create|build|design|please|include|including|give|me|a|an|the|with|for|of|this|that|object|model)\b/g, ' ')
+    .replace(/\b(cute|desktop|small|large|big|tiny|simple|modular)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function colorFromText(value) {
+  const text = String(value || '').toLowerCase();
+  return COLOR_WORDS.find((entry) => entry.words.some((word) => text.includes(word)))?.hex || null;
+}
+
+function removeColorWords(value) {
+  let text = String(value || '').toLowerCase();
+  for (const entry of COLOR_WORDS) {
+    for (const word of entry.words) {
+      text = text.replace(new RegExp(`\\b${escapeRegExp(word)}\\b`, 'gi'), ' ');
+    }
+  }
+  return text;
+}
+
+const COLOR_WORDS = [
+  { words: ['red', 'crimson'], hex: '#d94b4b' },
+  { words: ['orange', 'amber'], hex: '#ed7a22' },
+  { words: ['yellow', 'gold', 'golden'], hex: '#e7b32b' },
+  { words: ['green', 'emerald'], hex: '#2f9e59' },
+  { words: ['blue', 'navy'], hex: '#1664c0' },
+  { words: ['purple', 'violet'], hex: '#6842b9' },
+  { words: ['pink', 'magenta'], hex: '#d94fa3' },
+  { words: ['black', 'dark'], hex: '#182330' },
+  { words: ['white', 'silver'], hex: '#d7e1ea' },
+];
+
+const AUTO_COLORS = ['#2f9e59', '#6842b9', '#ed7a22', '#1664c0', '#e7b32b', '#38b6d8'];
+
+const ROLE_HINTS = [
+  { role: 'top', words: ['top', 'upper', 'roof', 'cap', 'head', 'face', 'hat', 'antenna'] },
+  { role: 'side', words: ['side', 'arm', 'arms', 'wing', 'wings', 'handle', 'handles', 'fin', 'fins'] },
+  { role: 'bottom', words: ['bottom', 'base', 'lower', 'foot', 'feet', 'leg', 'legs', 'wheel', 'wheels', 'stand'] },
+  { role: 'front', words: ['front', 'screen', 'panel', 'button', 'buttons', 'badge', 'sensor', 'light', 'detail'] },
+  { role: 'core', words: ['body', 'torso', 'core', 'main', 'primary', 'center', 'hull', 'frame'] },
+];
+
+function inferPartRole(label, index) {
+  const words = new Set(String(label).toLowerCase().split(/\s+/));
+  const hinted = ROLE_HINTS.find((hint) => hint.words.some((word) => words.has(word)));
+  if (hinted) return hinted.role;
+  return index === 0 ? 'core' : 'detail';
+}
+
+function buildPrimitivePlacements(spec) {
+  const pair = shouldUsePairedPrimitive(spec.label, spec.role);
+  const primitive = primitiveForLabel(spec.label, spec.role);
+  const points = pair ? pairPointsForRole(spec.role) : [singlePointForRole(spec.role)];
+  return points.map((point, index) => {
+    const size = sizeForPrimitive(primitive, spec.role, pair);
+    return {
+      primitive,
+      x: point.x,
+      y: point.y,
+      width: size.width,
+      height: size.height,
+      label: pair ? `${index === 0 ? 'left' : 'right'} ${spec.label}` : spec.label,
+    };
+  });
+}
+
+function primitiveForLabel(label, role) {
+  const text = String(label).toLowerCase();
+  if (/\b(wheel|arm|leg|rod|bar|handle|axle)\b/.test(text) || ['side', 'bottom'].includes(role)) return 'cylinder';
+  if (/\b(button|sensor|light|eye|orb|ball)\b/.test(text)) return 'sphere';
+  if (/\b(cone|spike|fin|wing)\b/.test(text)) return 'cone';
+  return 'box';
+}
+
+function shouldUsePairedPrimitive(label, role) {
+  const text = String(label).toLowerCase();
+  return /\b(pair|left|right|arms|wings|handles|wheels|feet|legs)\b/.test(text) || ['side', 'bottom'].includes(role);
+}
+
+function singlePointForRole(role) {
+  const points = {
+    core: { x: 0.5, y: 0.55 },
+    top: { x: 0.5, y: 0.42 },
+    side: { x: 0.5, y: 0.52 },
+    bottom: { x: 0.5, y: 0.68 },
+    front: { x: 0.5, y: 0.54 },
+    detail: { x: 0.5, y: 0.5 },
+  };
+  return points[role] || points.detail;
+}
+
+function pairPointsForRole(role) {
+  if (role === 'bottom') return [{ x: 0.42, y: 0.68 }, { x: 0.58, y: 0.68 }];
+  return [{ x: 0.35, y: 0.52 }, { x: 0.65, y: 0.52 }];
+}
+
+function assemblyAnchorForRole(role, index, total) {
+  const anchors = {
+    core: { x: 0.5, y: 0.56 },
+    top: { x: 0.5, y: 0.4 },
+    side: { x: 0.5, y: 0.55 },
+    bottom: { x: 0.5, y: 0.68 },
+    front: { x: 0.5, y: 0.56 },
+  };
+  if (anchors[role]) return anchors[role];
+  const spread = total <= 1 ? 0 : (index / (total - 1) - 0.5) * 0.42;
+  return { x: roundRatio(0.5 + spread), y: 0.5 };
+}
+
+function sizeForPrimitive(primitive, role, paired) {
+  if (primitive === 'sphere') return { width: role === 'front' ? 24 : 32, height: role === 'front' ? 24 : 32 };
+  if (primitive === 'cylinder') return paired ? { width: 92, height: role === 'bottom' ? 36 : 24 } : { width: 86, height: 54 };
+  if (primitive === 'cone') return { width: 80, height: 78 };
+  if (role === 'core') return { width: 112, height: 92 };
+  if (role === 'top') return { width: 86, height: 72 };
+  if (role === 'front') return { width: 62, height: 38 };
+  return { width: 92, height: 74 };
+}
+
+function autoColor(index) {
+  return AUTO_COLORS[index % AUTO_COLORS.length];
+}
+
+function slugify(value) {
+  return String(value || 'part')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 32) || 'part';
+}
+
+function uniqueId(base, usedIds) {
+  const current = usedIds.get(base) || 0;
+  usedIds.set(base, current + 1);
+  return current ? `${base}-${current + 1}` : base;
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function isCadAgentInstance(worker) {
@@ -1174,7 +1321,7 @@ function kernelWorkbenchHtml(run, worker) {
   const isAssembler = isDispatchAssemblyAgent(worker);
   const contracts = run.plan.workers.map((item) => item.contract);
   const palette = isAssembler ? assemblyPaletteHtml(run) : primitivePaletteHtml(worker);
-  const selectedDefault = isAssembler ? 'body' : 'box';
+  const selectedDefault = isAssembler ? run.plan.workers[0]?.id || 'part' : 'box';
   const emptyLog = isAssembler ? 'No assembly parts placed yet.' : 'No shapes placed yet.';
   return `<!doctype html>
 <html lang="en">
@@ -1209,37 +1356,20 @@ function kernelWorkbenchHtml(run, worker) {
     .tool-grid.assembly { grid-template-columns: repeat(3, 1fr); }
     button.tool { min-height: 92px; border: 1px solid #d8e1ea; border-radius: 8px; background: #f8fafc; display: grid; place-items: center; gap: 6px; cursor: pointer; font: inherit; color: #182330; font-weight: 800; }
     button.tool.selected { outline: 4px solid rgba(22,100,192,.28); border-color: #1664c0; }
+    button.tool.imported-part { min-height: 118px; align-content: center; padding: 10px; }
+    .asset-meta { color: #607080; font-size: 11px; font-weight: 800; line-height: 1.2; }
+    .asset-id { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0b5cad; font-size: 11px; }
+    .empty-assets { grid-column: 1 / -1; min-height: 92px; display: grid; place-items: center; border: 1px dashed #b9c8d7; border-radius: 8px; color: #607080; font-size: 13px; text-align: center; padding: 10px; }
     .thumb { position: relative; pointer-events: none; display: block; }
     .thumb.box { width: 56px; height: 48px; border-radius: 8px; background: ${worker.color}; box-shadow: inset -10px -12px rgba(0,0,0,.12); }
     .thumb.cylinder { width: 56px; height: 48px; border-radius: 50% / 18%; background: ${worker.color}; box-shadow: inset -10px -14px rgba(0,0,0,.14); }
     .thumb.sphere { width: 50px; height: 50px; border-radius: 50%; background: radial-gradient(circle at 30% 26%, #fff 0 6%, ${worker.color} 26%, #0b5cad 100%); }
     .thumb.cone { width: 0; height: 0; border-left: 30px solid transparent; border-right: 30px solid transparent; border-bottom: 58px solid ${worker.color}; filter: drop-shadow(8px 9px 0 rgba(0,0,0,.12)); }
-    .thumb.body { width: 46px; height: 38px; border-radius: 7px; background: #2f9e59; }
-    .thumb.head { width: 44px; height: 33px; border-radius: 7px; background: #6842b9; }
-    .thumb.arm { width: 54px; height: 14px; border-radius: 999px; background: #ed7a22; }
-    .thumb.foot { width: 42px; height: 23px; border-radius: 50%; background: #1664c0; }
-    .thumb.detail { width: 40px; height: 26px; border-radius: 6px; background: #e7b32b; }
     .placed { --part-color: ${worker.color}; --part-dark: #255fae; position: absolute; z-index: 4; display: grid; place-items: center; color: transparent; font-size: 11px; font-weight: 800; box-shadow: 0 18px 28px rgba(21,38,55,.18); }
     .placed.box { width: 92px; height: 74px; border-radius: 12px; background: var(--part-color); box-shadow: inset -12px -14px rgba(0,0,0,.1), 0 18px 28px rgba(21,38,55,.18); }
     .placed.cylinder { width: 86px; height: 74px; border-radius: 50% / 18%; background: var(--part-color); box-shadow: inset -10px -14px rgba(0,0,0,.12), 0 18px 28px rgba(21,38,55,.18); }
     .placed.sphere { width: 70px; height: 70px; border-radius: 50%; background: radial-gradient(circle at 30% 24%, #fff 0 7%, var(--part-color) 30%, var(--part-dark) 100%); }
     .placed.cone { width: 0; height: 0; border-left: 40px solid transparent; border-right: 40px solid transparent; border-bottom: 78px solid var(--part-color); filter: drop-shadow(0 16px 14px rgba(21,38,55,.2)); }
-    .placed.body { width: 112px; height: 92px; border-radius: 18px; background: linear-gradient(145deg, #38b76a, #22814d); box-shadow: inset -12px -16px rgba(0,0,0,.12), 0 18px 28px rgba(21,38,55,.18); }
-    .placed.head { width: 86px; height: 72px; border-radius: 22px 22px 18px 18px; background: linear-gradient(145deg, #7b52d1, #5632a7); box-shadow: inset -10px -12px rgba(0,0,0,.14), 0 18px 28px rgba(21,38,55,.18); }
-    .placed.head::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #f6fbff; box-shadow: 30px 0 #f6fbff; transform: translateX(-15px); }
-    .placed.arm { width: 96px; height: 24px; border-radius: 999px; background: linear-gradient(145deg, #ff8f2d, #d96512); box-shadow: inset -8px -8px rgba(0,0,0,.12), 0 14px 22px rgba(21,38,55,.16); }
-    .placed.foot { width: 78px; height: 36px; border-radius: 999px; background: radial-gradient(circle at 30% 30%, #2e83e6 0 18%, #1664c0 46%, #0d4387 100%); box-shadow: inset -8px -8px rgba(0,0,0,.14), 0 14px 22px rgba(21,38,55,.16); }
-    .placed.detail { width: 62px; height: 38px; border-radius: 9px; background: linear-gradient(145deg, #ffd34f, #d9a90d); box-shadow: inset -7px -8px rgba(0,0,0,.12), 0 14px 20px rgba(21,38,55,.14); }
-    .placed.detail::before { content: ""; width: 36px; height: 16px; border-radius: 4px; background: #18324f; box-shadow: inset 0 0 0 2px rgba(255,255,255,.18); }
-    .placed.source-body.box { width: 112px; height: 92px; border-radius: 18px; background: linear-gradient(145deg, var(--part-color), var(--part-dark)); }
-    .placed.source-head.box { width: 86px; height: 72px; border-radius: 22px 22px 18px 18px; background: linear-gradient(145deg, var(--part-color), var(--part-dark)); }
-    .placed.source-head.box::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #f6fbff; box-shadow: 30px 0 #f6fbff; transform: translateX(-15px); }
-    .placed.source-head.sphere { width: 26px; height: 26px; background: radial-gradient(circle at 30% 24%, #fff 0 10%, var(--part-color) 34%, var(--part-dark) 100%); }
-    .placed.source-arms.cylinder { width: 96px; height: 24px; border-radius: 999px; background: linear-gradient(145deg, var(--part-color), var(--part-dark)); }
-    .placed.source-feet.cylinder { width: 78px; height: 36px; border-radius: 999px; background: radial-gradient(circle at 30% 30%, #2e83e6 0 18%, var(--part-color) 46%, var(--part-dark) 100%); }
-    .placed.source-details.box { width: 62px; height: 38px; border-radius: 9px; background: linear-gradient(145deg, var(--part-color), var(--part-dark)); }
-    .placed.source-details.box::before { content: ""; width: 36px; height: 16px; border-radius: 4px; background: #18324f; box-shadow: inset 0 0 0 2px rgba(255,255,255,.18); }
-    .placed.source-details.sphere { width: 24px; height: 24px; background: radial-gradient(circle at 30% 24%, #fff 0 10%, var(--part-color) 38%, var(--part-dark) 100%); }
     .instructions { margin: 12px 0; padding: 10px; border: 1px solid #d8e1ea; border-radius: 8px; background: #f8fafc; color: #435466; line-height: 1.45; font-size: 13px; }
     .reset-project { width: 100%; margin: 0 0 12px; min-height: 42px; border: 1px solid #cfdae5; border-radius: 8px; background: #edf3f8; color: #223244; font: inherit; font-weight: 900; cursor: pointer; }
     .log { margin-bottom: 12px; padding: 10px; border: 1px solid #d8e1ea; border-radius: 8px; background: #101820; color: #dff7ec; min-height: 76px; font-size: 12px; line-height: 1.4; white-space: pre-wrap; }
@@ -1277,7 +1407,7 @@ function kernelWorkbenchHtml(run, worker) {
     <aside>
       ${palette}
       <button id="resetProject" class="reset-project" type="button">Reset Project</button>
-      <div class="instructions">${escapeHtml(isAssembler ? 'Click a robot part, then click the workplane to place it.' : 'Click a primitive, then click the workplane to place it.')}</div>
+      <div class="instructions">${escapeHtml(isAssembler ? 'Click an exported CAD part, then click the workplane to place that part asset.' : 'Click a primitive, then click the workplane to place it.')}</div>
       <div id="log" class="log">${escapeHtml(emptyLog)}</div>
       <h2>Assigned prompt</h2>
       <p class="prompt">${escapeHtml(worker.prompt)}</p>
@@ -1295,7 +1425,7 @@ function kernelWorkbenchHtml(run, worker) {
     const workspace = document.querySelector("#workspace");
     const log = document.querySelector("#log");
     const resetProject = document.querySelector("#resetProject");
-    const buttons = [...document.querySelectorAll(".tool")];
+    let buttons = [...document.querySelectorAll(".tool")];
     const defaultSelection = ${JSON.stringify(selectedDefault)};
     const emptyLog = ${JSON.stringify(emptyLog)};
     const isAssembler = ${JSON.stringify(isAssembler)};
@@ -1305,15 +1435,65 @@ function kernelWorkbenchHtml(run, worker) {
     window.importedManifests = window.importedManifests || [];
     window.demoManifest = { worker: ${JSON.stringify(worker.id)}, parts: [] };
     let selected = defaultSelection;
+    wireButtons();
     setSelected(selected);
 
-    buttons.forEach((button) => {
-      button.addEventListener("click", () => {
+    function wireButtons() {
+      buttons = [...document.querySelectorAll(".tool")];
+      if (window.toolDelegateBound) return;
+      window.toolDelegateBound = true;
+      document.addEventListener("click", (event) => {
+        const button = event.target.closest("button.tool");
+        if (!button) return;
         selected = button.dataset.shape || button.dataset.part;
         setSelected(selected);
-        writeLog("Selected " + selected + ". Click the workplane to place it.");
+        const manifest = isAssembler ? findImportedManifest(selected) : null;
+        const label = manifest ? manifest.id : selected;
+        writeLog("Selected " + label + ". Click the workplane to place it.");
       });
-    });
+    }
+
+    window.refreshImportedPalette = function refreshImportedPalette(manifests) {
+      const tools = document.querySelector("#importedPartTools");
+      if (!tools) return;
+      tools.dataset.manifests = JSON.stringify(manifests || []);
+      tools.textContent = "";
+      for (const manifest of manifests || []) {
+        const button = document.createElement("button");
+        button.className = "tool imported-part";
+        button.type = "button";
+        button.dataset.part = manifest.part;
+        button.dataset.manifestId = manifest.id;
+        button.setAttribute("aria-label", manifest.id + " exported part");
+
+        const thumb = document.createElement("span");
+        thumb.className = "thumb " + (manifest.thumb?.primitive || manifest.placements?.[0]?.primitive || "box");
+        thumb.style.background = manifest.color || workerColor;
+
+        const title = document.createElement("span");
+        title.textContent = manifest.label || manifest.part;
+
+        const meta = document.createElement("span");
+        meta.className = "asset-meta";
+        meta.textContent = manifest.sourceWorkerTitle + " · " + (manifest.placements?.length || 0) + " primitives";
+
+        const assetId = document.createElement("span");
+        assetId.className = "asset-id";
+        assetId.textContent = manifest.id;
+
+        button.append(thumb, title, meta, assetId);
+        tools.append(button);
+      }
+      if (!tools.children.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty-assets";
+        empty.textContent = "Waiting for exported CAD parts";
+        tools.append(empty);
+      }
+      selected = manifests?.[0]?.part || selected;
+      wireButtons();
+      setSelected(selected);
+    };
 
     resetProject.addEventListener("click", () => {
       for (const placed of [...workspace.querySelectorAll(".placed")]) placed.remove();
@@ -1332,13 +1512,18 @@ function kernelWorkbenchHtml(run, worker) {
       if (imported && imported.placements && imported.placements.length) {
         const count = renderImportedManifest(imported, x, y);
         workspace.classList.add("has-parts");
-        writeLog("Placed " + imported.id + " as " + count + " imported primitives at (" + x + ", " + y + ").");
+        writeLog("Placed exported part " + imported.id + " at (" + x + ", " + y + ") using " + count + " source primitives.");
         return;
       }
 
+      const nextPlacement = window.nextPlacementStyle || {};
+      window.nextPlacementStyle = null;
       createPlaced(selected, x, y, {
         sourcePart: isAssembler ? selected : workerPart,
-        color: isAssembler ? paletteColor(selected) : workerColor,
+        color: nextPlacement.color || workerColor,
+        width: nextPlacement.width,
+        height: nextPlacement.height,
+        label: nextPlacement.label,
       });
       workspace.classList.add("has-parts");
       writeLog("Placed " + selected + " at (" + x + ", " + y + ").");
@@ -1354,6 +1539,8 @@ function kernelWorkbenchHtml(run, worker) {
         createPlaced(placement.primitive, x, y, {
           sourcePart: manifest.part,
           color: placement.color || manifest.color,
+          width: placement.width,
+          height: placement.height,
           manifestId: manifest.id,
           sourcePlacementId: placement.id,
           label: placement.label,
@@ -1366,9 +1553,11 @@ function kernelWorkbenchHtml(run, worker) {
     function createPlaced(shape, x, y, options = {}) {
       const sourcePart = options.sourcePart || workerPart;
       const part = document.createElement("div");
-      part.className = "placed " + partClass(shape) + " source-" + safeClass(sourcePart);
+      const primitiveClass = partClass(shape);
+      part.className = "placed " + primitiveClass + " source-" + safeClass(sourcePart);
       setPartColor(part, options.color || workerColor);
-      const offset = partOffset(shape, sourcePart);
+      setPartSize(part, primitiveClass, options);
+      const offset = partOffset(primitiveClass, options);
       part.style.left = Math.round(x - offset.x) + "px";
       part.style.top = Math.round(y - offset.y) + "px";
       part.textContent = partLabel(shape);
@@ -1378,6 +1567,8 @@ function kernelWorkbenchHtml(run, worker) {
         primitive: shape,
         x: Math.round(x),
         y: Math.round(y),
+        width: options.width || null,
+        height: options.height || null,
         manifestId: options.manifestId || null,
         sourcePlacementId: options.sourcePlacementId || null,
         label: options.label || "",
@@ -1385,7 +1576,16 @@ function kernelWorkbenchHtml(run, worker) {
     }
 
     function findImportedManifest(part) {
-      return (window.importedManifests || []).find((manifest) => manifest.part === part);
+      const tools = document.querySelector("#importedPartTools");
+      let manifests = window.importedManifests || [];
+      if (tools?.dataset.manifests) {
+        try {
+          manifests = JSON.parse(tools.dataset.manifests);
+        } catch {
+          manifests = [];
+        }
+      }
+      return manifests.find((manifest) => manifest.part === part);
     }
 
     function manifestBounds(placements) {
@@ -1399,6 +1599,7 @@ function kernelWorkbenchHtml(run, worker) {
     }
 
     function setSelected(value) {
+      buttons = [...document.querySelectorAll(".tool")];
       for (const button of buttons) {
         button.classList.toggle("selected", (button.dataset.shape || button.dataset.part) === value);
       }
@@ -1410,51 +1611,31 @@ function kernelWorkbenchHtml(run, worker) {
         cylinder: "cylinder",
         sphere: "sphere",
         cone: "cone",
-        body: "body",
-        head: "head",
-        arms: "arm",
-        feet: "foot",
-        details: "detail",
       };
       return classes[value] || "box";
     }
 
-    function partOffset(value, sourcePart = workerPart) {
-      const sourceOffsets = {
-        "body:box": { x: 56, y: 46 },
-        "head:box": { x: 43, y: 36 },
-        "head:sphere": { x: 13, y: 13 },
-        "arms:cylinder": { x: 48, y: 12 },
-        "feet:cylinder": { x: 39, y: 18 },
-        "details:box": { x: 31, y: 19 },
-        "details:sphere": { x: 12, y: 12 },
-      };
-      const sourceKey = sourcePart + ":" + value;
-      if (sourceOffsets[sourceKey]) return sourceOffsets[sourceKey];
+    function partOffset(value, options = {}) {
+      const width = Number(options.width);
+      const height = Number(options.height);
+      if (Number.isFinite(width) && Number.isFinite(height)) {
+        return { x: Math.round(width / 2), y: Math.round(height / 2) };
+      }
       const offsets = {
         box: { x: 46, y: 37 },
         cylinder: { x: 43, y: 37 },
         sphere: { x: 35, y: 35 },
         cone: { x: 40, y: 74 },
-        body: { x: 56, y: 46 },
-        head: { x: 43, y: 36 },
-        arms: { x: 48, y: 12 },
-        feet: { x: 39, y: 18 },
-        details: { x: 31, y: 19 },
       };
       return offsets[value] || { x: 40, y: 34 };
     }
 
-    function paletteColor(value) {
-      const colors = {
-        body: "#2f9e59",
-        head: "#6842b9",
-        arms: "#ed7a22",
-        feet: "#1664c0",
-        details: "#e7b32b",
-        wings: "#38b6d8",
-      };
-      return colors[value] || workerColor;
+    function setPartSize(element, primitiveClass, options = {}) {
+      const width = Number(options.width);
+      const height = Number(options.height);
+      if (!Number.isFinite(width) || !Number.isFinite(height) || primitiveClass === "cone") return;
+      element.style.width = Math.round(width) + "px";
+      element.style.height = Math.round(height) + "px";
     }
 
     function setPartColor(element, color) {
@@ -1510,14 +1691,10 @@ function primitivePaletteHtml(worker) {
 }
 
 function assemblyPaletteHtml(run) {
-  const ids = run.plan.workers.map((worker) => worker.id);
-  const tools = ids.map((id) => {
-    const label = id.charAt(0).toUpperCase() + id.slice(1);
-    const klass = ['body', 'head', 'arms', 'feet'].includes(id) ? id.replace('arms', 'arm').replace('feet', 'foot') : 'detail';
-    return `<button class="tool" data-part="${escapeHtml(id)}" type="button" aria-label="${escapeHtml(label)} part"><span class="thumb ${escapeHtml(klass)}"></span><span>${escapeHtml(label)}</span></button>`;
-  });
-  return `<h2>Assembly Parts</h2>
-    <div class="tool-grid assembly">${tools.join('')}</div>
+  return `<h2>Imported Parts</h2>
+    <div id="importedPartTools" class="tool-grid assembly">
+      <div class="empty-assets">Waiting for exported CAD parts</div>
+    </div>
     <div class="contract"><strong>Agent owner</strong><pre>${escapeHtml(JSON.stringify({ template: 'Dispatch & Assembly Agent', kernel: 'dispatch-assembly' }, null, 2))}</pre></div>`;
 }
 
@@ -1551,6 +1728,7 @@ function serializeRun(run) {
         assignment: worker.assignment,
         prompt: worker.prompt,
         contract: worker.contract,
+        assetSpec: worker.assetSpec,
       })),
       assembler: {
         id: run.plan.assembler.id,
@@ -1570,6 +1748,7 @@ function serializeRun(run) {
       assignment: worker.assignment,
       prompt: worker.prompt,
       contract: worker.contract,
+      assetSpec: worker.assetSpec,
       status: worker.status,
       sessionId: worker.sessionId,
       liveViewUrl: worker.liveViewUrl,

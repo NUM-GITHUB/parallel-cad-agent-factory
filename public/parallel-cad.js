@@ -202,7 +202,7 @@ function renderMonitor(run) {
       const lastAction = worker.lastAction ? `<div class="last-action">last action: ${escapeHtml(worker.lastAction)}</div>` : "";
       const finalText = worker.finalText ? `<div class="final-text">${escapeHtml(worker.finalText)}</div>` : "";
       const manifestText = worker.partManifest
-        ? `<div class="manifest-chip">${escapeHtml(worker.partManifest.id)}${worker.partManifest.sources ? ` · imported ${escapeHtml(worker.partManifest.sources.length)} manifests` : ` · ${escapeHtml(worker.partManifest.placements?.length || 0)} placements`}</div>`
+        ? `<div class="manifest-chip">${escapeHtml(worker.partManifest.id)}${worker.partManifest.components ? ` · placed ${escapeHtml(worker.partManifest.components.length)} exported parts` : worker.partManifest.sources ? ` · imported ${escapeHtml(worker.partManifest.sources.length)} manifests` : ` · ${escapeHtml(worker.partManifest.placements?.length || 0)} placements`}</div>`
         : "";
       return `<article class="kernel-card">
         <div class="kernel-top">
